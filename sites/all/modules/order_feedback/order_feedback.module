@@ -1,0 +1,178 @@
+<?php
+function order_feedback_menu(){
+$items = array();
+
+$items['user/feedback'] = array(
+'title' => t('Order Feedback'),
+'page callback' => 'order_feedback_page',
+'access arguments' => array('access content'),
+'type' => MENU_CALLBACK,
+ );
+  // 
+	
+ return $items; 
+ //global $my_variable = $argument;	
+}
+
+
+function accept_order_page($argument) {
+   
+    $cancel = remove_allocation($argument);
+	//$content = drupal_get_form('order_feedback_form', $argument);
+	//$form = drupal_get_form('order_feedback_form');
+    //$content = order_feedback_form('order_feedback_form');
+   // return $content;
+   global $argument;
+}
+/*
+function remove_allocation($argument)
+{
+	$orderid = get_order_id($argument);
+	$sql = "DELETE FROM order_allocation WHERE  order_allocation.order_allocation_id =$argument";
+	$db_result = db_query($sql);
+	drupal_goto('admin/order_feedback/'.$orderid, array('external' => FALSE));
+}
+function get_order_id($argument)
+{
+	 $query="SELECT order_id FROM order_allocation where order_allocation_id = $argument";
+	 $db_result = db_query($query);
+	 foreach ($db_result as $record) 
+	{
+		$orderid = $record->order_id;
+				
+	}
+	return $orderid;
+}
+*/
+function order_feedback_page($argument) {
+   
+	$content = drupal_get_form('order_feedback_form', $argument);
+	//$form = drupal_get_form('order_feedback_form');
+    //$content = order_feedback_form('order_feedback_form');
+    return $content;
+}
+
+
+function order_feedback_form($form, &$form_state, $argument) {
+	//set path to css file
+	//drupal_add_css(drupal_get_path('module', 'order_feedback') . '/order_feedback.css', array('group' => CSS_DEFAULT, 'type' => 'file'));
+  $form['#prefix'] = '<div class="order_feedback">';
+  
+ // update_order_status($argument);
+ 
+  /*$form['#order_detail']['css'] = array(
+    drupal_get_path('module', 'order_feedback') . '/order_feedback.css',
+  ); 
+  */
+  $form['order_detail'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t('Order details'), 
+    '#attributes' => array('class' => array('container-inline')),
+	'#collapsible' => TRUE,
+  );
+  
+ 
+    $form ['order_detail']['orderID'] = array(
+ '#type' => 'textfield',
+ '#title' => t('Order Number:'),
+ '#value' => $argument,
+ '#size' => 10, 
+ '#attributes' => array( 'class' => array('readonly-input'),  'readonly' => 'readonly'),
+ //'#class' => 'text',
+ );
+
+  $query = "SELECT uc_o.`order_id` , uc_o.`order_status` as status , u.name as name
+			FROM uc_orders AS uc_o
+			JOIN users AS u ON u.uid = uc_o.uid 
+			WHERE order_id =  '$argument'  ";
+			
+  $db_result = db_query($query);
+ // while ($record = mysql_fetch_array($db_result)){
+	foreach ($db_result as $record) 
+	{  
+  
+		  $form ['order_detail']['orderstatus'] = array(
+		 '#type' => 'textfield',
+		 '#title' => t('Order Status:'),
+		 '#value' => $record-> status, 
+		 '#size' => 20, 
+		'#attributes' => array( 'class' => array('readonly-input'),  'readonly' => 'readonly'),
+		 );
+		  $form ['order_detail'] ['customer'] = array(
+		 '#type' => 'textfield',
+		 '#title' => t('Customer:'),
+		 '#value' => $record-> name, 
+		 '#size' => 20, 
+		 '#attributes' => array( 'class' => array('readonly-input'),  'readonly' => 'readonly'),
+		 );
+  }
+
+  
+ 
+   $form['order_details'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Order Products'),
+      '#description' => t(show_order_products($argument)),
+	  '#collapsible' => TRUE,
+	
+    );
+
+	 $form['order_status'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Update Order Status'),
+      '#attributes' => array('class' => array('container-inline')),
+	'#collapsible' => TRUE,
+    );
+
+$options = array();
+$options["delivery_accepted"] = "Accept Products Delivered";
+$options["delivery_rejected"] = "Reject Products Delivered";
+
+ 
+$form ['order_status']['check'] = array(
+'#type' => 'radios',
+'#default_value' => delivery_accepted,
+'#options' => array('delivery_accepted'=>t('Accept Products Delivered'),'delivery_rejected'=>t('Reject Products Delivered')),
+);
+
+  //submit button 
+  $form ['order_status']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+  );
+  
+$form['#suffix'] = '</div>';
+  return $form;
+}
+function order_feedback_form_validate($form, &$form_state) {
+  //echo ($form_state['values']['quantity'] );
+  
+ if(empty($form_state['values']['check']))
+ {
+	form_set_error('check', t("Select an order status"));
+ }
+	
+}
+
+
+
+//WE SAVE THE ITEMS TO THE DB
+function order_feedback_form_submit($form, &$form_state) {
+	
+	/*$selected = array();
+	foreach($form_state['values']['check'] as $a => $b)
+	{
+		if((string)$b != "0")
+		{
+			 $selected[] = $b;
+		}
+	}
+variable_set("var_selected", $selected);*/
+	
+		
+		$SQL = "UPDATE  uc_orders set order_status = '".$form_state['values']['check']."' where order_id='".$form_state['values']['orderID']."' ";
+		
+		
+		db_query($SQL);
+	    drupal_set_message(t('Update saved'));
+}

@@ -1,0 +1,492 @@
+<?php
+function inspect_product_menu(){
+$menuss = array();
+
+
+  
+  
+  $menuss['admin/userproductslist'] = array(
+    'title' => t('Inspection'),
+    'page callback' => 'list_user_products',
+    'access arguments' => array('access content'),
+	'type' => MENU_CALLBACK,
+  );
+  
+  
+  $menuss['admin/orders_for_user'] = array(
+    'title' => t('User Orders'),
+    'page callback' => 'list_user_orders',
+    'access arguments' => array('access content'),
+	'type' => MENU_CALLBACK,
+  );
+  
+$menuss['admin/orders_products'] = array(
+    'title' => t('User Orders'),
+    'page callback' => 'list_user_orders_products',
+    'access arguments' => array('access content'),
+	'type' => MENU_CALLBACK,
+  );
+ 
+  
+  
+  return $menuss;
+}
+//menu 1
+function list_user_products ()
+{
+	$content = user_order_product();
+	//$content = get_user_products_table();
+	return $content;
+}
+// menu 2
+function list_user_orders ()
+{
+	$content = user_orders();
+	return $content;
+}
+//menu 3
+function list_user_orders_products ()
+{
+	$content = users_orders();
+	//$content = user_orders_products();
+	return $content;
+}
+
+//function to list down all the products for the user as per the order
+function user_order_product()
+{
+	$sql ="select distinct(order_allocation.uid) as u_uid, users.name from order_allocation inner join users on order_allocation.uid = users.uid";
+		$db_result = db_query($sql);
+		
+		$rows = array();
+		 $header = array();
+		 $header[] = 'User';
+		 $header[] = 'Orders';
+		 
+		
+		$row = array();
+	foreach ($db_result as $record) 
+	{
+		 $row [] = array(
+			
+			  // output 1 cell in 1 row   l($node->title, 'node/'. $node->nid .'/edit'),
+			  array('data' => l($record->name, 'user/'.$record->u_uid)), 
+			  // second cell
+			  array('data' => l('View Orders', 'admin/orders_for_user/'.$record->u_uid)) 
+			
+			); 
+			//$amountallocated = $record->qty;
+				
+	}
+	return theme('table', array('header' => $header, 'rows'=> $row));
+}
+
+
+//function to list down all the orders for the user
+function user_orders()
+{
+	
+	$sql ="select distinct(order_allocation.order_id) as order_id from order_allocation  where order_allocation.uid =".arg(2);
+	$db_result = db_query($sql);
+		
+	//create products
+
+	$header= array();
+	$header []= 'User';
+	$header[] = 'Order';
+	$row [] = array();
+	foreach ($db_result as $record) 
+	{
+		 $row [] = array(
+			
+			  // output 1 cell in 1 row   l($node->title, 'node/'. $node->nid .'/edit'),
+			  array('data' => l(get_user_names(arg(2)), 'user/'.arg(2))), 
+			  // second cell
+			  array('data' => l('View Products for Order Number '.$record->order_id, 'admin/orders_products/'.$record->order_id.'/user/'.arg(2))) 
+			
+			); 
+			//$amountallocated = $record->qty;
+				
+	}
+	//$row [] = arra
+	$returnable = theme('table', array('header' => $header, 'rows'=> $row));
+	return $returnable;
+
+}
+
+
+function users_orders()
+{
+	
+		
+		$rows = array();
+		 $header1 = array();
+		 $header = array();
+		 $header1[] = 'User';
+		 $header1[] = 'Orders';
+		 $header1[] = '';
+		 $header1[] = '';
+		 
+		
+		$row1 = array();
+		$row = array();
+		$row1 [] = array( array('data' =>'Order Number'), array('data' =>arg(2)), array('data' =>''),array('data' =>''));
+		$row1 [] = array( array('data' =>'Farmer'), array('data' => l(get_user_names(arg(4)), 'user/'.arg(4))), array('data' =>''),array('data' =>''));
+	
+	$returnable = theme('table', array('header' => $header1, 'rows'=> $row1));
+	$returnable .= '<h3>Allocations</h3>';
+	//create products
+	//create 
+		 $productheader = array();
+		 $productheader[] = 'Product';
+		 $productheader[] = 'Uom';
+		 $productheader[] = 'Qty';
+		 $productheader[] = 'Price';
+		 $productheader[] = 'Qty Accepted';
+		 
+		 
+		 
+		$sql2 = "SELECT order_allocation.productid,
+		order_allocation.uid,
+		order_allocation.qty,
+		order_allocation.supplied,
+		order_allocation.order_id,
+		order_allocation.price,
+		order_allocation.uom,
+		node.title,
+		node.nid,
+		users.name
+		FROM
+		order_allocation INNER JOIN node on order_allocation.productid = node.nid LEFT OUTER JOIN users on users.uid = order_allocation.uid
+		where order_allocation.order_id = ".arg(2)." AND order_allocation.uid= ".arg(4);
+	
+	//$sql2 = "SELECT * FROM order_allocation WHERE order_id = ".arg(2).' and uid='.arg(4);
+	$db_res = db_query($sql2);
+	$products = array();
+	foreach ($db_res as $product)
+	{
+		$products [] = array(
+							array('data' => l($product->title, 'node/'.$product->productid)), 
+							array('data' => $product->uom), 
+							array('data' => $product->qty), 
+							array('data' => $product->price),
+							//array('data' => $product->passed)
+							array('data' => '')
+						);
+	}
+	
+	$returnable .= theme('table', array('header' => $productheader, 'rows'=> $products));
+	
+	//inspections form
+	$resreturn = drupal_get_form('inspect_product_form');
+	$returnable .= drupal_render($resreturn);
+	 
+	 
+	
+	
+	//load the inspections
+    $sql = "SELECT product_score.score_id, product_score.user_product_id,product_score.userid, product_score.orderid, product_score.inspection,product_score.score,product_score.qty_passed,product_score.qty_failed,
+product_score.inspectedby,product_score.date_added,node.title, users.name, inspection.inspection_name
+FROM `product_score` INNER JOIN node on product_score.user_product_id = node.nid LEFT OUTER JOIN inspection ON product_score.inspection = inspection.inspection_id LEFT OUTER JOIN users ON product_score.userid = users.uid WHERE product_score.orderid =". arg(2);
+	//$sql ="select distinct(order_allocation.order_id) as order_id from order_allocation  where order_allocation.uid =".arg(2);
+	$db_score_result = db_query($sql);
+	$headertable = array();
+	$headertable[] = 'Product';
+	 $headertable[] = 'Order';
+	 $headertable[] = 'Inspection type';
+	 $headertable[] = 'Measured Score';
+	 $headertable[] = 'Qty Passed';
+	 $headertable[] = 'Qty Failed';
+     $scorerows = array();
+	foreach ($db_score_result as $scorerecord) 
+	{
+        $scorerows [] = array(
+							array('data' => l($scorerecord->title, 'node/'.$scorerecord->user_product_id)), 
+							array('data' => $scorerecord->orderid), 
+							array('data' => $scorerecord->inspection_name), 
+							array('data' => $scorerecord->score),
+							array('data' => $scorerecord->qty_passed),
+							array('data' => $scorerecord->qty_failed)
+							
+						);
+       
+				
+	}
+	//$row [] = arra
+	$returnable .= theme('table', array('header' => $headertable, 'rows'=> $scorerows));
+	return $returnable;
+}
+function inspect_product_form($form, &$form_state)
+{
+	drupal_add_css(drupal_get_path('module', 'inspect_products') . '/inspect_products.css', array('group' => CSS_DEFAULT, 'type' => 'file'));
+	$form['#prefix'] = '<div class="order_allocations">';
+	
+	 $form['inspections'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t('Inspect Products'), 
+    '#attributes' => array('class' => array('container-inline')), 
+    //'#access' => $admin_access,
+	);
+	
+	$sql = "SELECT node.nid,  node.title, uc_order_products.order_id FROM uc_order_products INNER JOIN node on uc_order_products.nid=node.nid WHERE uc_order_products.order_id = ".arg(2);
+	$db_result = db_query($sql);
+	$list = array();
+	foreach ($db_result as $record) 
+	{
+		$list[$record->nid] = $record->title;
+				
+	}
+	//create a select list of products in the order
+	  $form['inspections']['product'] = array(
+	 '#type' => 'select',
+	 '#title' => t('Product'),
+	 '#options' => $list,
+	 '#cols' => 10,
+	  '#multiple' => FALSE,
+	 );
+	 
+	 $inspectionlist = array();
+	$sql = "SELECT inspection_id, inspection_name FROM inspection";
+	$db_result = db_query($sql);
+	foreach ($db_result as $record) 
+	{
+		$inspectionlist[$record->inspection_id] = $record->inspection_name;
+				
+	}
+	//create a select list of inspections 
+	  $form['inspections']['inspection'] = array(
+	 '#type' => 'select',  
+	 '#title' => t('Inspection'),
+	 '#options' => $inspectionlist,
+	 '#cols' => 10,
+	  '#multiple' => FALSE,
+	 );
+	
+	 $form['inspections']['qty'] = array(
+	 '#type' => 'textfield',
+	 '#size'=> 5,
+	 '#default'=>0,
+	 '#title' => t('Qty'),
+	 );
+	 
+	 $form['inspections']['value'] = array(
+	 '#type' => 'textfield',
+	 '#size'=> 5,
+	 '#default'=>0,
+	 '#title' => t('Value'),
+	 );
+	 
+	 
+	 $form['inspections']['passed'] = array(
+	 '#type' => 'textfield',
+	  '#size'=> 5,
+	  '#default'=>0,
+	 '#title' => t('Qty Passed'),
+	 );
+	
+	 $form['inspections']['failed'] = array(
+	 '#type' => 'textfield', 
+	 '#size'=> 5,
+	 '#default'=>0,
+	 '#title' => t('Qty Failed'),
+	 );
+	 
+	 $form['inspections']['submit'] = array(
+    '#type' => 'submit',
+	'#size'=> 5,
+    '#value' => t('Save'),
+	);
+  $form['#suffix'] = '</div>';
+	 return $form;
+}
+//function to list down all the orders for the user
+function user_orders_products()
+{
+	$sql ="select distinct(order_allocation.order_id) as order_id from order_allocation  where order_allocation.uid =".arg(2);
+	
+		$db_result = db_query($sql);
+		
+		$rows = array();
+		 $header = array();
+		 $header[] = 'User';
+		 $header[] = 'Orders';
+		 
+		
+		$row = array();
+	foreach ($db_result as $record) 
+	{
+		 $row [] = array(
+			
+			  // output 1 cell in 1 row   l($node->title, 'node/'. $node->nid .'/edit'),
+			  array('data' => l(get_user_names(arg(3)), 'user/'.arg(2))), 
+			  // second cell
+			  array('data' => l('View Products for Order Number '.$record->order_id, 'admin/orders_products/'.$record->order_id.'/user/'.arg(2))) 
+			
+			); 
+			//$amountallocated = $record->qty;
+				
+	}
+	return theme('table', array('header' => $header, 'rows'=> $row));
+}
+
+
+function get_user_names($userid)
+{
+	$sql ="select * from users where uid = '".$userid."'";
+	$db_result = db_query($sql);
+	
+	foreach ($db_result as $record) 
+	{
+		$usernames = $record->name;
+	}
+	
+	return $usernames;
+}
+
+
+//get_user_products_table
+function get_user_products_table ()
+{
+	//user_product_id, productid, userid, quantity, regionid, date_added
+	//Create a list of headers for your Html table 
+		$header = array(
+			array('data' => 'Product', 'field' => 'productid', 'sort' => 'asc'),
+			array('data' => 'User', 'field' => 'userid'),
+			array('data' => 'Quantity', 'field' => 'quantity'),
+			array('data' => 'Region', 'field' => 'regionid'),
+			array('data' => 'Inspected', 'field' => 'inspected'),
+			array('data' => 'Actions'),
+			);
+
+		//Create the Sql query. This uses various parts of Drupal 7's new DBTNG database abstraction layer.
+		$query = db_select('user_products', 'up');
+					$query->join('node', 'n', 'n.nid = up.productid');
+					$query->join('users', 'u', 'u.uid = up.userid');
+					//$query->join('user', 'u', 'u.uid = up.userid');
+					//$query->extend('PagerDefault') 	//Pager Extender
+					//	->limit(10);			//10 results per page
+					$query->extend('TableSort')		//Sorting Extender
+						->orderByHeader($header);//Field to sort on is picked from $header
+					$query->fields ('up', array (
+						'productid',
+						'user_product_id',
+						'userid',
+						'quantity',
+						'regionid',
+						'inspected',
+					));
+					
+					$query->fields ('n', array ( 
+						'nid',
+						'title',
+					));
+					$query->fields ('u', array (
+						'name',
+						'uid',
+					));
+
+		$results = $query
+					->execute();
+
+		$rows = array();	
+		foreach ($results as $node) {
+				if ($node->inspected) { $nspected = 'Inspected'; } else {$nspected = 'Not Inspected'; }
+			$rows[] = array(
+						'data' => array(
+							  l($node->title, 'node/'. $node->nid),
+							  l($node->name, 'user/'.$node->uid),
+							  $node->quantity,
+							  $node->regionid,
+							  $nspected,
+							  //$node->inspected,
+							  l('Inspect', 'admin/inspect_user_product/'.$node->user_product_id)
+						)
+			);
+		}
+
+		//Theme the html table
+		$html = theme('table', 
+					array(
+						'header' => $header,
+						'rows'=>$rows,
+						//'caption' => 'List of Crop Inspection',	//Optional Caption for the table
+						'sticky' => TRUE,						//Optional to indicate whether the table headers should be sticky
+						'empty' => 'No user products created...',		//Optional empty text for the table if resultset is empty
+					)
+				);
+
+		//Append pager
+		$html .= theme('pager',
+					array(
+						'tags' => array()
+					)
+				);
+				
+		return ($html);
+}
+
+//
+function inspect_product_form_validate($form, &$form_state)
+{
+	//product inspection qty value parameter passed
+	if(!is_numeric($form_state['values']['product'])|| empty($form_state['values']['product']))
+	 {
+		form_set_error('product', t("Please select a product"));
+	 }
+	 elseif(!is_numeric($form_state['values']['inspection'])|| empty($form_state['values']['inspection']))
+	 {
+		form_set_error('inspection', t("Please select an inspection"));
+	 }
+	 elseif(!is_numeric($form_state['values']['qty'])|| empty($form_state['values']['qty']))
+	 {
+		form_set_error('qty', t("Specify the Quantity, and this MUST be a number"));
+	 }
+	 elseif(!is_numeric($form_state['values']['value'])|| empty($form_state['values']['value']))
+	 {
+		form_set_error('value', t("Specify the value ie the score, and this MUST be a number"));
+	 }
+	 elseif(!is_numeric($form_state['values']['passed'])|| empty($form_state['values']['passed']))
+	 {
+		form_set_error('passed', t("Specify the qty passed, and this MUST be a number"));
+    }
+ elseif(!is_numeric($form_state['values']['failed'])|| empty($form_state['values']['failed']))
+	 {
+		form_set_error('passed', t("Specify the qty failed, and this MUST be a number"));
+	 }
+}
+function inspect_product_form_submit($form, &$form_state)
+{
+        global $user;
+        // we save these details to the database
+        // we are going to do a multi insert; 
+        
+        
+        //one to the product score
+        $sql ="INSERT INTO product_score (user_product_id, inspection, userid, orderid, score, qty_passed, inspectedby, qty_failed) VALUES ('".$form_state['values']['product']."', '".$form_state['values']['inspection']."', '".arg(4)."', '".arg(2)."', '".$form_state['values']['value']."', '".$form_state['values']['passed']."', '".$user->uid."', '".$form_state['values']['failed']."')";
+        db_query($sql);
+        drupal_set_message(t('Your details have been saved'));
+        
+}
+/*
+function input_allocation_mail($key, &$message, $params) {
+  switch ($key) {
+    case 'invitation':
+      //$message['subject'] = t('Hello ');
+      
+      
+      		
+      	     $message['subject'] = t('Requisition raised on Sokopepe Platform');
+              // the email body is here, inside the $message array 
+              $body = array($params['msg']);
+              $message['body'] = $body;
+              $message['headers']['Content-Type'] = 'text/html; charset=UTF-8; format=flowed';
+      
+      //$message['body'] = array($params['msg']);
+      	
+      	
+      	
+      	
+      break;    
+  }
+}
+*/

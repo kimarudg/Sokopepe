@@ -1,0 +1,294 @@
+<?php
+function purchase_input_menu(){
+$items = array();
+ 
+ $items['admin/sokopepe'] = array(
+'title' => t('Sokopepe Actions'),
+'page callback' => 'sokopepe_action_page',
+ 'access arguments' => array('access content'),
+
+'type' => MENU_CALLBACK
+ );
+ 
+$items['admin/sokopepe/purchase_input'] = array(
+'title' => t('Inputs Purchase'),
+'page callback' => 'purchase_input_page',
+'access arguments' => array('access content'),
+'type' => MENU_LOCAL_TASK
+ );
+
+ return $items; 
+
+}
+
+function purchase_input_page() {
+   
+	$content = drupal_get_form('purchase_input_form');
+
+    return $content;
+}
+
+
+function purchase_input_form($form, &$form_state) {
+	
+	
+	//set path to css file
+	drupal_add_css(drupal_get_path('module', 'purchase_input') . '/purchase_input.css', array('group' => CSS_DEFAULT, 'type' => 'file'));
+ 
+  $form['#prefix'] = '<div class="purchase_input">';
+  
+  $form['#purchase_input']['css'] = array(
+    drupal_get_path('module', 'purchase_input') . '/purchase_input.css',
+  ); 
+   
+  $form['purchase_input'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t('Create Requisition'), 
+
+	'#collapsible' => TRUE,
+  );
+   
+
+   $query = "SELECT COUNT( * ) AS id  FROM  `purchase_input`  ";
+   $db_result = db_query($query);
+ 
+	foreach ($db_result as $record) 
+	{  
+	     $id = $record->id;
+  
+    }
+	global $user;
+	
+		  $form ['purchase_input']['genid'] = array(
+		 '#type' => 'hidden',
+		 '#title' => t('Requisition Number:'),
+		 '#value' => $id+1,
+		 '#size' => 10, 
+		 '#attributes' => array( 'class' => array('readonly-input'),  'readonly' => 'readonly'),
+		 //'#class' => 'text',
+		 );
+  
+    $form ['purchase_input']['id'] = array(
+		 '#type' => 'hidden',
+		 '#title' => t('Requisition Number:'),
+		 '#value' => $id,
+		 '#size' => 10, 
+		 '#attributes' => array( 'class' => array('readonly-input'),  'readonly' => 'readonly'),
+		 //'#class' => 'text',
+		 );
+	     $form ['purchase_input'] ['creator'] = array(
+		 '#type' => 'textfield',
+		 '#title' => t('Creator:'),
+		 '#value' => $user->name, 
+		 '#size' => 10, 
+		 '#attributes' => array( 'class' => array('readonly-input'),  'readonly' => 'readonly'),
+		 );
+		  $form ['purchase_input']['date'] = array(
+		 '#type' => 'textfield',
+		 '#title' => t('Date:'),
+		 '#value' => date('d/m/Y'), 
+		 '#size' => 10, 
+		 '#attributes' => array( 'class' => array('readonly-input'),  'readonly' => 'readonly'),
+		 );
+	 
+		 //get the farmers
+		  $farmer = array();
+		  $query="SELECT users.uid as uid, users.name as name
+				  FROM users
+				  JOIN users_roles ON users.uid = users_roles.uid
+				  WHERE  `rid` =4";
+		  $db_result = db_query($query);
+			foreach ($db_result as $record) 
+			{
+				$farmer[$record->uid] = $record->name;
+						
+			}
+		 $form ['purchase_input']['farmer'] = array(
+         '#type' => 'select',
+         '#title' => t('Farmer'),
+         '#options' => $farmer,
+         '#cols' => 10,
+		 '#multiple' => FALSE,
+		  );
+ 
+
+ $product = array();
+ $query = "SELECT nid, title, field_service_subtype_value AS subtype, field_service_sku_value
+			FROM node
+			LEFT JOIN field_data_field_service_subtype AS subtype ON subtype.entity_id = node.nid
+			JOIN field_data_field_service_sku AS sku ON sku.entity_id = node.nid
+			WHERE TYPE =  'service'";
+			
+ $db_result = db_query($query);
+	foreach ($db_result as $record) 
+	{
+		$product[$record->nid] = $record->title." - ".$record->subtype;
+				
+	}
+$form ['purchase_input']['product'] = array(
+ '#type' => 'select',
+ '#title' => t('Product'),
+ '#options' => $product,
+ '#cols' => 10,
+ 
+ '#multiple' => FALSE,
+ );
+ 
+ //create quantity text
+ //create a text field called quantity with label quantity to supply
+ $form['purchase_input']['quantity'] = array(
+ '#type' => 'textfield',
+ '#title' => t('Quantity'),
+ '#size' => 10,
+ '#required' => TRUE,
+ );
+ $uom_array = array('',"Kg" =>'Kg',"Liter" =>'Liter',"Bag"=>'Bag');// "ANG" = > 'Angola',
+  $form['purchase_input']['uom'] = array(
+ '#type' => 'select',
+ '#title' => t('UOM'),
+ '#options' => $uom_array,
+ '#cols' => 10,
+ '#multiple' => FALSE,
+ );
+ 
+ $form ['purchase_input']['price'] = array(
+ '#type' => 'textfield',
+ '#title' => t('Asking Price'),
+ '#size' => 10,
+ '#required' => TRUE,
+ );
+ 
+ 
+  //submit button 
+  $form['purchase_input']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+  );
+  
+  
+    $form['dets'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Requisitions'),
+      '#description' => t(get_service_orders()),
+	  '#collapsible' => TRUE,
+    );
+ 
+ $form['#suffix'] = '</div>';
+  return $form; 
+}
+ 
+function purchase_input_form_validate($form, &$form_state) {
+  //echo ($form_state['values']['quantity'] );
+  
+ if(!is_numeric($form_state['values']['product'])|| empty($form_state['values']['product']))
+ {
+	form_set_error('product', t("Select a Product"));
+ }
+	elseif(!is_numeric($form_state['values']['farmer']) || empty($form_state['values']['farmer']))
+ {
+	form_set_error('farmer', t("Select a Farmer"));
+ }
+ elseif(!is_numeric($form_state['values']['quantity']) || empty($form_state['values']['quantity']))
+ {
+	form_set_error('quantity', t("Please Enter a valid Quantity (HINT: Must be a number!)"));
+ }
+  elseif(!is_numeric($form_state['values']['price']) || empty($form_state['values']['price']))
+ {
+	form_set_error('price', t("Please Enter the product price"));
+ }
+   elseif(empty($form_state['values']['uom']))
+ {
+	form_set_error('uom', t("Please Enter the UOM"));
+ }
+ 
+}
+
+
+//WE SAVE THE ITEMS TO THE DB
+function purchase_input_form_submit($form, &$form_state) {
+	
+	global $user;
+	//CHECK IF THE order EXISTS 
+	$sql_check = "Select count(*) as existingitems from purchase_input where serviceid = '".$form_state['values']['product']."' AND uid ='".$form_state['values']['farmer']."' ";
+	echo $sql_check;
+	$db_check = db_query($sql_check);
+	foreach ($db_check as $db_record) 
+	{
+		$existingitems = $db_record->existingitems;
+		//update_order_status($form_state['values']['orderID']);, uom = '".$form_state['values']['uom']."''".$form_state['values']['uom']."',
+	}
+	if ($existingitems != 0)
+	{
+		$SQL = "UPDATE purchase_input set qty = '".$form_state['values']['quantity']."', price = '".$form_state['values']['price']."', serviceid = '".$form_state['values']['product']."' , uid = '".$form_state['values']['farmer']."' WHERE purchase_input_id = '".$form_state['values']['id']."'";
+		
+	}
+	else
+	{
+		$SQL = "INSERT INTO purchase_input(purchase_input_id, serviceid, uid, qty, price,creator,uom) VALUES ('".$form_state['values']['genid']."', '".$form_state['values']['product']."', '".$form_state['values']['farmer']."', '".$form_state['values']['quantity']."', '".$form_state['values']['price']."', $user->uid, '".$form_state['values']['uom']."')";
+		
+		//update_order_status($form_state['values']['orderID']);
+	}	
+	db_query($SQL);
+	drupal_set_message(t('Request Saved.'));
+	
+}
+
+function get_service_orders()
+{
+$sql =
+"SELECT so.uid as uid,title,node.nid as nid, field_service_subtype_value AS subtype, field_service_sku_value AS sku, name, qty, price, uom, FORMAT( qty * price, 2 ) AS total, so.status
+		FROM purchase_input AS so
+		JOIN users ON users.uid = so.uid
+		JOIN node ON node.nid = so.serviceid
+		LEFT JOIN field_data_field_service_subtype AS subtype ON subtype.entity_id = node.nid
+		JOIN field_data_field_service_sku AS sku ON sku.entity_id = node.nid";
+		$db_result = db_query($sql);
+		
+		$rows = array();
+		 $header = array();
+		 $header[] = 'Farmer';
+		 $header[] = 'Product';
+		 $header[] = 'Description';
+		 $header[] = 'Subtype';
+		 $header[] = 'Quantity';
+		 $header[] = 'UOM';
+		// $header[] = 'UOM';
+		 $header[] = 'Fulfilled';
+		 $header[] = 'Price';
+		 $header[] = 'Total';
+		// $header[] = 'Operations';
+		
+		$row = array();
+	foreach ($db_result as $record) 
+	{
+		$sup = $record->status;
+		if($sup == '1')
+		{
+			$supplied = "Yes";
+		}
+		else
+		{
+			$supplied = "No";
+		}
+		 $row [] = array(
+			  // output 1 cell in 1 row   l($node->title, 'node/'. $node->nid .'/edit'),
+			  array('data' => l($record->name, 'user/'.$record->uid)), 
+			  // second cell
+			  array('data' => t($record->sku)), 
+			  array('data' => l($record->title, 'node/'.$record->nid)), 
+			  array('data' => t($record->subtype)), 
+			   // third cell
+			  array('data' => t($record->qty)), 
+			  array('data' => t($record->uom)), 
+			  // fourth cell  
+			  array('data' => t($supplied )),
+			  array('data' => t($record->price)),
+			  array('data' => t($record->total)),
+			  // fifth cell  
+			  //array('data' => l('Cancel', 'order_cancellation/'.$record->uid)) 
+			); 
+		//$amountallocated = $record->qty;
+				
+	}
+	return theme('table', array('header' => $header, 'rows'=> $row));
+}

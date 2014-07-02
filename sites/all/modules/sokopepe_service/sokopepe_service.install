@@ -1,0 +1,69 @@
+<?php 
+//create a database table to store the services provided by users
+
+function sokopepe_service_schema(){
+	// user_products table schema
+  $schema['sokopepe_service'] = array(
+    'description' => 'Sokopepe Services Table',
+    'fields' => array(
+      'sokopepe_user_service_id'             => array( //Primary key
+        'description'       => 'Primary Key: Sokopepe Service Id',
+        'type'              => 'serial',
+        'not null'          => TRUE,
+        ),
+	 'serviceid'           => array(
+        'description'       => 'Service ID',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+      'costingid'           => array(
+        'description'       => 'Costing Method ID',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	   'cost'           => array(
+        'description'       => 'Cost of service',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'userid'           => array(
+        'description'       => 'User ID Owner',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'regionid'           => array(
+        'description'       => 'Region ID',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	   'comment'           => array(
+        'description'       => 'Additional Details',
+        'type' 				=> 'varchar',
+        'length' 			=> 255,
+     
+        'not null'          => FALSE,
+      ),
+     'date_added'              => array(
+        'description'           => 'Date Added',
+        'type'                  => 'datetime',
+        'mysql_type'            => 'DATETIME',
+        'not null'              => FALSE,
+      )
+    ),
+    'primary key' => array('sokopepe_user_service_id'),
+    'indexes'       =>  array(
+                          'serviceid' => array('serviceid'),
+						   'costingid' => array('costingid'),
+						  'userid' => array('userid')
+                        ),
+    );  
+  return $schema;
+}
+
+
+

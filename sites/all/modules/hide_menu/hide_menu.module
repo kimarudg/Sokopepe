@@ -1,0 +1,31 @@
+<?php
+function hide_menu_menu_alter(&$items) {
+  // If you have the Devel module installed, uncomment to retrieve list
+  // of registered menu items to figure out what to unset.
+  // kpr($items);
+
+  // Change the name of the Edit tab
+  //$items['user/%user_category/edit']['title'] = t('Awesome edit!');
+
+  // Disable the user edit tab, but don't disable the page if you go navigate 
+  // directly to it
+  // @see http://api.drupal.org/api/function/hook_menu/6 for other types
+  //$items['user/%user_category/edit']['type'] = MENU_CALLBACK;
+
+  // Only allow people with administer site configuration permissions to
+  // access the user edit and user edit account tabs.
+  /*$items['user/%user_category/edit']['access callback'] = 'user_access';
+  $items['user/%user_category/edit']['access arguments'] = array('administer site configuration');
+  $items['user/%user_category/edit/account']['access callback'] = 'user_access';
+  $items['user/%user_category/edit/account']['access arguments'] = array('administer site configuration');
+*/
+  // Completely disable the user edit tab, even if you go directly to it
+  // This affects all users, including user 1.
+  unset($items['user/%user/shortcuts']);
+  unset($items['user/%user/track']);
+  unset($items['user/%user/purchased-files']);
+  unset($items['user/%user/addresses']);
+  unset($items['user/%user/contact']);
+  unset($items['user/%user/track/navigation']);  
+  unset($items['/user/%/orders']);  
+}

@@ -1,0 +1,10 @@
+name = order_allocations
+description = Allows admin to allocate order items to specific sellers.
+package = Sokopepe - intelligent Technologies Ltd
+core = 7.x
+
+files[] = order_allocations.module
+
+
+stylesheets[all][] = order_allocations.css
+

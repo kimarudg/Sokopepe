@@ -1,0 +1,499 @@
+<?php
+
+/**
+ * @file
+ * Provide UI for managing available units and conversions between them.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function units_ui_menu() {
+  $items = array();
+
+  $items['units-ui/re-import/units-measure/%'] = array(
+    'title' => 'Re-importing a Measure',
+    'page callback' => 'units_ui_reimport',
+    'page arguments' => array('units_measure', 3),
+    'access arguments' => array('administer measures'),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['units-ui/re-import/units-unit/%/%'] = array(
+    'title' => 'Re-importing a Unit',
+    'page callback' => 'units_ui_reimport',
+    'page arguments' => array('units_unit', 3, 4),
+    'access arguments' => array('administer units'),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['admin/structure/units-measure/re-import'] = array(
+    'title' => 'Re-importing Unit Measures',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('units_ui_reimport_overview_form'),
+    'access arguments' => array('administer measures'),
+    'type' => MENU_LOCAL_ACTION,
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function units_ui_permission() {
+  return array(
+    'administer measures' => array(
+      'title' => t('Administer measurements'),
+      'description' => t('Add/edit/delete available physical measures.'),
+    ),
+    'administer units' => array(
+      'title' => t('Administer measurement units'),
+      'description' => t('Add/edit/delete available units of measurement.'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_entity_info_alter().
+ *
+ * Add UI controller info to entity types 'units_measure' and 'units_unit' and
+ * alter access callback to one provided by units_ui module, which respects
+ * permissions defined in units_ui module.
+ */
+function units_ui_entity_info_alter(&$entity_info) {
+  $entity_info['units_unit']['admin ui'] = array(
+    'path' => 'admin/structure/units-measure/%units_measure_machine_name/units-unit',
+    // This number denotes what position in path the bundle argument is
+    // located at.
+    'path bundle argument position' => 3,
+    'controller class' => 'UnitsUnitUIController',
+  );
+  $entity_info['units_unit']['access callback'] = 'units_ui_entity_access';
+
+  $entity_info['units_measure']['admin ui'] = array(
+    'path' => 'admin/structure/units-measure',
+    'controller class' => 'UnitsMeasureUIController',
+  );
+  $entity_info['units_measure']['access callback'] = 'units_ui_entity_access';
+}
+
+/**
+ * Access callback for entity types 'units_measure' and 'units_unit'.
+ *
+ * This access callback overrides one defined in units.module once units_ui
+ * module becomes enabled. This access callback respects permissions defined
+ * in units_ui.module.
+ *
+ * @param string $op
+ *   The operation being performed. One of 'view', 'update', 'create' or
+ *   'delete'
+ * @param object $entity
+ *   Entity object on which the operation is requested to be performed
+ * @param object $account
+ *   Fully loaded user object of the account who requests to perform the
+ *   operation
+ * @param string $entity_type
+ *   Entity type on which the operation is requested to be performed
+ *
+ * @return bool
+ *   Whether access has been granted
+ */
+function units_ui_entity_access($op, $entity, $account, $entity_type) {
+  switch ($entity_type) {
+    case 'units_measure':
+      $perm = 'administer measures';
+      break;
+
+    case 'units_unit':
+      $perm = 'administer units';
+      break;
+  }
+
+  if (!isset($perm)) {
+    // Seems like this access callback is triggerred on an unexpected entity
+    // type.
+    return FALSE;
+  }
+
+  switch ($op) {
+    case 'view':
+      return TRUE;
+      break;
+
+    case 'update':
+    case 'create':
+    case 'delete':
+      return user_access($perm, $account);
+      break;
+  }
+  // Just in case, fallback on negative response. Although normally this
+  // statement should never be reached.
+  return FALSE;
+}
+
+/**
+ * Menu title callback for UI of Units Unit entity.
+ *
+ * @param string $bundle
+ *   Bundle string of units unit entity type
+ *
+ * @return string
+ *   Title of menu path
+ */
+function units_ui_unit_title($measure) {
+  $unit_info = entity_get_info('units_unit');
+  $entity_label = isset($unit_info['plural label']) ? $unit_info['plural label'] : $unit_info['label'] . 's';
+  return t('@entity_label of @entity_bundle_label', array('@entity_label' => $entity_label, '@entity_bundle_label' => entity_label('units_measure', $measure)));
+}
+
+/**
+ * Generate editting form for entity type 'units_measure'.
+ */
+function units_measure_form($form, &$form_state, $entity, $op = 'edit') {
+  if ($op == 'clone') {
+    $entity->label .= ' (cloned)';
+    $entity->type = '';
+  }
+
+  $form['label'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Label'),
+    '#description' => t('The human-readable name of this measure.'),
+    '#required' => TRUE,
+    '#default_value' => isset($entity->label) ? $entity->label : NULL,
+  );
+
+  $form['measure'] = array(
+    '#type' => 'machine_name',
+    '#maxlength' => 32,
+    '#disabled' => $entity->isLocked() && $op != 'clone',
+    '#machine_name' => array(
+      'exists' => 'units_measure_machine_name_load',
+      'source' => array('label'),
+    ),
+    '#description' => t('A unique machine-readable name for this measure. It must only contain lowercase letters, numbers, and underscores.'),
+    '#default_value' => isset($entity->measure) ? $entity->measure : '',
+  );
+
+  $form['description'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Description'),
+    '#description' => t('Please, provide description of the measure.'),
+    '#default_value' => isset($entity->description) ? $entity->description : NULL,
+  );
+
+  $default_value = isset($entity->convert_callback) ? $entity->convert_callback : '';
+  if ($default_value == UNITS_DEFAULT_CONVERT_CALLBACK) {
+    $default_value = '';
+  }
+  $form['convert_callback'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Convert Callback'),
+    '#description' => t('<p>If you want to use your custom PHP callback function for converting units in this measure, please specify function name here. Leave blank if you want to use Units module standard convert callback.</p><p><b>Important:</b> edit this field only when you know what you are doing.</p>'),
+    '#default_value' => $default_value,
+    '#element_validate' => array('units_ui_measure_convert_callback_validate'),
+  );
+
+  $form['actions'] = array('#type' => 'actions');
+  $form['actions']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save measure'),
+  );
+
+  if (!$entity->isLocked() && $op != 'add' && $op != 'clone') {
+    $form['actions']['delete'] = array(
+      '#type' => 'submit',
+      '#value' => t('Delete measure'),
+      '#limit_validation_errors' => array(),
+      '#submit' => array('units_measure_form_delete_submit'),
+    );
+  }
+
+  return $form;
+}
+
+/**
+ * Submit handler for 'units_measure_form'.
+ *
+ * Save an entity of type 'units_measure'.
+ */
+function units_measure_form_submit($form, &$form_state) {
+  $entity = entity_ui_form_submit_build_entity($form, $form_state);
+  units_measure_save($entity);
+
+  drupal_set_message(t('Measure %name has been successfully saved.', array('%name' => entity_label('units_measure', $entity))));
+
+  // Taking user back to the overview page.
+  $form_state['redirect'] = array('admin/structure/units-measure');
+}
+
+/**
+ * Submit handler for 'units_measure_form'.
+ *
+ * Delete an entity of type 'units_measure'.
+ */
+function units_measure_form_delete_submit($form, &$form_state) {
+  $entity = entity_ui_form_submit_build_entity($form, $form_state);
+  units_measure_delete($entity);
+
+  drupal_set_message(t('Measure %name has been successfully deleted.', array('%name' => entity_label('units_measure', $entity))));
+
+  // Taking user back to the overview page.
+  $form_state['redirect'] = array('admin/structure/units-measure');
+}
+
+/**
+ * Form element validate function.
+ *
+ * Make sure the value of element is name of an existing PHP function. If the
+ * value of element is an empty string, substitute it with
+ * UNITS_DEFAULT_CONVERT_CALLBACK.
+ */
+function units_ui_measure_convert_callback_validate($element, &$form_state, $form) {
+  if ($element['#value'] == '') {
+    form_set_value($element, UNITS_DEFAULT_CONVERT_CALLBACK, $form_state);
+  }
+  elseif (!function_exists($element['#value'])) {
+    form_error($element, t('%function is not a valid PHP function', array('%function' => $element['#value'])));
+  }
+}
+
+/**
+ * Generate editting form for entity type 'units_unit'.
+ */
+function units_unit_form($form, &$form_state, $entity, $op = 'edit') {
+  if ($op == 'clone') {
+    $entity->label .= ' (cloned)';
+    $entity->type = '';
+  }
+
+  $form['label'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Label'),
+    '#required' => TRUE,
+    '#description' => t('Please, provide human readable label of this mesurement unit.'),
+    '#default_value' => isset($entity->label) ? $entity->label : NULL,
+  );
+
+  $form['machine_name'] = array(
+    '#type' => 'machine_name',
+    '#maxlength' => 32,
+    '#machine_name' => array(
+      'exists' => 'units_unit_machine_name_load',
+      'source' => array('label'),
+    ),
+    '#description' => t('A unique machine-readable name for this measurement unit. It must only contain lowercase letters, numbers, and underscores.'),
+    '#default_value' => isset($entity->machine_name) ? $entity->machine_name : NULL,
+  );
+
+  $form['description'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Description'),
+    '#description' => t('Please, provide description of this measurement unit.'),
+    '#default_value' => isset($entity->description) ? $entity->description : NULL,
+  );
+
+  $form['factor'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Factor'),
+    '#description' => t('Please, provide numeric factor (coefficient) multiplying by which value from this measurement unit will be converted into the SI unit (or any other standard unit) of this measure.'),
+    '#default_value' => isset($entity->factor) ? $entity->factor : 0,
+    '#element_validate' => array('element_validate_number'),
+    '#required' => TRUE,
+  );
+
+  $form['actions'] = array('#type' => 'actions');
+  $form['actions']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save unit'),
+  );
+
+  if ($op != 'add' && $op != 'clone') {
+    $form['actions']['delete'] = array(
+      '#type' => 'submit',
+      '#value' => t('Delete unit'),
+      '#limit_validation_errors' => array(),
+      '#submit' => array('units_unit_form_delete_submit'),
+    );
+  }
+
+  return $form;
+}
+
+/**
+ * Submit handler for 'units_unit_form'.
+ *
+ * Save an entity of type 'units_unit'.
+ */
+function units_unit_form_submit($form, &$form_state) {
+  $entity = entity_ui_form_submit_build_entity($form, $form_state);
+  units_unit_save($entity);
+
+  drupal_set_message(t('Unit %name has been successfully saved.', array('%name' => entity_label('units_unit', $entity))));
+
+  // Taking user back to the overview page.
+  $form_state['redirect'] = array('admin/structure/units-measure/' . field_extract_bundle('units_unit', $entity) . '/units-unit');
+}
+
+/**
+ * Submit handler for 'units_unit_form'.
+ *
+ * Delete an entity of type 'units_unit'.
+ */
+function units_unit_form_delete_submit($form, &$form_state) {
+  $entity = entity_ui_form_submit_build_entity($form, $form_state);
+  units_unit_delete($entity);
+
+  drupal_set_message(t('Unit %name has been successfully deleted.', array('%name' => entity_label('units_unit', $entity))));
+
+  // Taking user back to the overview page.
+  $form_state['redirect'] = array('admin/structure/units-measure/' . field_extract_bundle('units_unit', $entity) . '/units-unit');
+}
+
+/**
+ * Menu page callback. Basically wrapper around units_reimport() function.
+ *
+ * Call units_reimport() function and then redirect to units measure overview
+ * page.
+ *
+ * @param string $entity_type
+ *   What entity type is expected to be reimported. Passed on to
+ *   units_reimport()
+ * @param string $machine_name
+ *   Machine readable name of the entity to be reimported. Passed on to
+ *   units_reimport()
+ * @param string $measure
+ *   If $entity_type is 'units_unit', bundle (measure) of the unit. Passed on to
+ *   units_reimport()
+ */
+function units_ui_reimport($entity_type, $machine_name, $measure = NULL) {
+  if (units_reimport($entity_type, $machine_name, $measure)) {
+    drupal_set_message(t('Entity has been successfully reimported.'));
+  }
+  else {
+    drupal_set_message(t('Entity failed to be reimported.'), 'error');
+  }
+
+  drupal_goto('admin/structure/units-measure');
+}
+
+/**
+ * Build form for overviewing imported unit entities from units_info().
+ */
+function units_ui_reimport_overview_form($form, &$form_state) {
+  $units_info = units_info();
+
+  // Maps enabled/disabled entity to a human friendly text representation of
+  // the status.
+  $status_labels = array(
+    1 => t('Enabled'),
+    0 => t('Disabled'),
+  );
+
+  foreach ($units_info as $measure => $measure_info) {
+    $measure_entity = units_measure_machine_name_load($measure);
+    $measure_label = $measure_entity ? entity_label('units_measure', $measure_entity) : $measure_info['label'];
+    $form[$measure] = array(
+      '#type' => 'fieldset',
+      '#title' => $measure_label,
+      '#collapsible' => TRUE,
+      '#tree' => TRUE,
+    );
+
+    $form[$measure]['module'] = array(
+      '#type' => 'item',
+      '#title' => t('Defied in %module module.', array('%module' => $measure_info['module'])),
+      '#description' => t('Tells what module defines this measure.'),
+    );
+
+    $form[$measure]['status'] = array(
+      '#type' => 'item',
+      '#title' => $status_labels[(bool) $measure_entity],
+      '#description' => t('Tells whether this measure is currently imported and enabled.'),
+    );
+
+    $form[$measure]['measure'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Re-import measure'),
+      '#description' => t('Please, check here if you want to import/reset this measure.'),
+    );
+
+    $options = array();
+    foreach ($measure_info['units'] as $unit => $unit_info) {
+      $unit_entity = units_unit_machine_name_load($unit);
+      if ($unit_entity && $unit_entity->measure != $measure) {
+        // This unit, despite it has the same machine name, is attached to
+        // another measure, so we can't consider it here.
+        $unit_entity = FALSE;
+      }
+      $unit_label = $unit_entity ? entity_label('units_unit', $unit_entity) : $unit_info['label'];
+      $options[$unit] = array(
+        $unit_label,
+        $unit_info['module'],
+        $status_labels[(bool) $unit_entity],
+      );
+    }
+    $form[$measure]['units'] = array(
+      '#type' => 'tableselect',
+      '#header' => array(
+        t('Label'),
+        t('Module'),
+        t('Status'),
+      ),
+      '#options' => $options,
+      '#empty' => t('Measure %measure does not have units defined in code.', array('%measure' => $measure_label)),
+    );
+  }
+
+  $form['actions'] = array(
+    '#type' => 'actions',
+  );
+
+  $form['actions']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Re-import'),
+  );
+
+  return $form;
+}
+
+/**
+ * Submit handler for the form 'units_ui_reimport_overview_form'.
+ *
+ * Re-import the selected entities from units_info().
+ */
+function units_ui_reimport_overview_form_submit($form, &$form_state) {
+  form_state_values_clean($form_state);
+  $units_info = units_info();
+
+  $is_success = TRUE;
+  foreach ($form_state['values'] as $measure => $measure_info) {
+    if ($measure_info['measure']) {
+      if (!units_reimport('units_measure', $measure)) {
+        $is_success = FALSE;
+        drupal_set_message(t('Measure %measure failed to be imported.', array(
+          '%measure' => $units_info[$measure]['label'],
+        )), 'error');
+      }
+    }
+    foreach (array_filter(array_values($measure_info['units'])) as $unit) {
+      if (!units_reimport('units_unit', $unit, $measure)) {
+        $is_success = FALSE;
+        drupal_set_message(t('Unit %unit of measure %measure failed to be imported.', array(
+          '%unit' => $units_info[$measure]['units'][$unit]['label'],
+          '%measure' => $units_info[$measure]['label'],
+        )), 'error');
+      }
+    }
+  }
+
+  if ($is_success) {
+    drupal_set_message(t('The entities have been sucessfully reimported.'));
+  }
+  else {
+    drupal_set_message(t('An error occurred while importing entites. Please review the error messages.'), 'error');
+  }
+
+  drupal_goto('admin/structure/units-measure');
+}

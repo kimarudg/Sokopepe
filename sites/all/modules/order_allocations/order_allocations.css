@@ -1,0 +1,42 @@
+@charset "utf-8";
+/* CSS Document */
+.order_allocations .form-type-select, input {
+display:table-cell;
+  padding: 15px;
+   display:inline-block;
+
+}
+.order_allocations .form-type-textfield, input{
+  display:table-cell;
+  padding: 15px;
+   display:inline-block;
+
+}
+
+.order_allocations .form-submit{
+ /* padding:15px;
+  display:inline;
+ display:table-cell;*/
+ padding: 10px;
+ width:20%;
+
+}
+.order_allocations .readonly-input { background: none repeat scroll 0 0 #EAEAEA; }
+
+/*.form-type-select, input {
+   
+   display:table-cell;
+    padding: 10px;      
+}
+
+div.form-type-textfield, input[readonly='readonly'] {
+
+border:#FF0000;
+}
+input.form-submit{
+background-color:#FF0000;
+}
+input[readonly="readonly"]
+{
+    background-color:blue;
+}*/

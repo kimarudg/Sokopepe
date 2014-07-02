@@ -1,0 +1,6 @@
+name = Sokopepe Inspect Product
+description = Use this to inspect products submitted by farmers
+package = Sokopepe - intelligent Technologies Ltd
+core = 7.x
+ 
+

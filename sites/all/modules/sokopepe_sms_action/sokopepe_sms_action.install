@@ -1,0 +1,42 @@
+<?php 
+
+function sokopepe_sms_action_schema(){
+	
+	$schema['sokopepe_sms_action'] = array(
+    'description' => 'actions, keywords and return messages',
+    'fields' => array(
+      's_action_id'             => array( //Primary key
+        'description'       => 'Primary Key: action ID for easier management',
+        'type'              => 'serial',
+		'unsigned'			=> TRUE,
+        'not null'          => TRUE,
+        ),
+      'key_word'           => array(
+        'description'       => 'Key word to identify the message',
+        'type'              => 'varchar',
+        'length'              => '200',
+      ),
+	  'crop'           => array(
+        'description'       => 'the crop content is about',
+        'type'              => 'varchar',
+		'length'              => '200',
+      ),
+	  'region'           => array(
+        'description'       => 'region of the crop',
+        'type'              => 'varchar',
+		'length'              => '200',
+      ),
+     'return_message'              => array(
+        'description'           => 'return message',
+        'type'                  => 'varchar',
+        'length'              => '200',
+      )
+    ),
+    'primary key' => array('s_action_id'),
+    'indexes'       =>  array(
+                          's_action_id' => array('s_action_id')
+                        ),
+    );
+	
+ return $schema;
+}

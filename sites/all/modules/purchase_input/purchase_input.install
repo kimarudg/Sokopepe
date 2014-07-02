@@ -1,0 +1,80 @@
+<?php 
+//create a database table to store the orders made by farmers
+
+function purchase_input_schema(){
+	
+  $schema['purchase_input'] = array(
+    'description' => 'Sokopepe purchase_input Table',
+    'fields' => array(
+      'purchase_input_id'             => array( //Primary key
+        'description'       => 'Primary Key: purchase_input_id',
+        'type'              => 'serial',
+        'not null'          => TRUE,
+        ),
+	 'serviceid'           => array(
+        'description'       => 'service ID',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+      'uid'           => array(
+        'description'       => 'Farmer ID',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	   'qty'           => array(
+        'description'       => 'quantity',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	    'price'           => array(
+        'description'       => 'price',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	    'uom'           => array(
+        'description'       => 'uom',
+         'type' 			=> 'varchar',
+        'length' 			=> 255,
+      ),
+	    'status'           => array(
+        'description'       => 'status',
+         'type' 			=> 'int',
+		 'size'				=> 'big',
+        'length' 			=> 255,
+		'default'			=>0,
+      ),
+          'allocated'           => array(
+        'description'       => '1 for allocated, 0 for unallocated',
+         'type' 			=> 'int',
+		 'size'				=> 'big',
+        'length' 			=> 255,
+		'default'			=>0,
+      ),
+	    'creator'           => array(
+        'description'       => 'User that added order',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	    'date_added'              => array(
+        'description'           => 'Date Added',
+        'type'                  => 'datetime',
+        'mysql_type'            => 'datetime',
+        'not null'              => FALSE,
+      )
+    ),
+    'primary key' => array('purchase_input_id'),
+    'indexes'       =>  array(
+                          'serviceid' => array('serviceid'),
+						   'uid' => array('uid'),
+                        ),
+    );  
+  return $schema;
+}
+
+
+

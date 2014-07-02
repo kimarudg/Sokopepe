@@ -1,0 +1,520 @@
+<?php
+function order_delivery_menu(){
+$items = array();
+
+ $items['admin/order_delivery']  = array(
+	'title' => t('Order Deliveries'),
+	'page callback' => 'order_delivery_page',
+	
+	 'access arguments' => array('access content'),
+	'type' => MENU_CALLBACK, //rendered as tab
+	 );
+ 
+ return $items;
+}
+
+function order_delivery_page($argument) {
+   
+	$content = drupal_get_form('order_delivery_form', $argument);
+	//$form = drupal_get_form('order_delivery_form');
+    //$content = order_delivery_form('order_delivery_form');
+    return $content;
+}
+
+
+function order_delivery_form($form, &$form_state, $argument) {
+	
+	 variable_set('order_id',$argument);
+	update_delivery_order_status($argument);
+	
+	drupal_add_css(drupal_get_path('module', 'order_delivery') . '/order_delivery.css', array('group' => CSS_DEFAULT, 'type' => 'file'));
+  $form['#prefix'] = '<div class="order_delivery">';
+  
+  $form['order_detail'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t('Order details'), 
+    '#attributes' => array('class' => array('container-inline')),
+	
+  );
+    $form ['order_detail']['orderID'] = array(
+ '#type' => 'textfield',
+ '#title' => t('Order Number:'),
+ '#value' => $argument,
+ '#size' => 10, 
+ '#attributes' => array( 'class' => array('readonly-input'),  'readonly' => 'readonly'),
+ //'#class' => 'text',
+ );
+
+  $query = "SELECT uc_o.`order_id` , uc_o.`order_status` as status , u.name as name
+			FROM uc_orders AS uc_o
+			JOIN users AS u ON u.uid = uc_o.uid 
+			WHERE order_id =  '$argument'  ";
+			
+  $db_result = db_query($query);
+ // while ($record = mysql_fetch_array($db_result)){
+	foreach ($db_result as $record) 
+	{  
+  
+		  $form ['order_detail']['orderstatus'] = array(
+		 '#type' => 'textfield',
+		 '#title' => t('Order Status:'),
+		 '#value' => $record-> status, 
+		 '#size' => 20, 
+		'#attributes' => array( 'class' => array('readonly-input'),  'readonly' => 'readonly'),
+		 );
+		  $form ['order_detail'] ['customer'] = array(
+		 '#type' => 'textfield',
+		 '#title' => t('Customer:'),
+		 '#value' => $record-> name, 
+		 '#size' => 20, 
+		 '#attributes' => array( 'class' => array('readonly-input'),  'readonly' => 'readonly'),
+		 );
+  }
+
+  
+ 
+   $form['order_details'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Order Products'),
+      '#description' => t(show_products($argument)),
+	  '#collapsible' => TRUE,
+	  '#collapsed' => TRUE,
+    );
+  $form['dets'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Allocation Details'),
+      '#description' => t(get_allocations($argument)),
+	  '#collapsible' => TRUE,
+	
+    );
+  
+  //get the users
+  $farmer = array();
+  $query="SELECT DISTINCT o_a.uid as uid ,name
+		  FROM users
+		  JOIN order_allocation AS o_a ON o_a.uid = users.uid
+		  WHERE o_a.order_id = $argument";
+		 // echo $query;
+	$db_result = db_query($query);
+	foreach ($db_result as $record) 
+	{
+		$farmer[$record->uid] = $record->name;
+				
+	}
+	
+	  $form['deliver'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Deliver'),
+     
+    );
+  
+	//create a select list of users fetched above
+$form ['deliver']['farmer'] = array(
+ '#type' => 'select',
+ '#title' => t('Farmer'),
+ '#options' => $farmer,
+ '#cols' => 10,
+ '#multiple' => FALSE,
+ );
+ //get the products for the selected order
+ $list = array();
+  $query="SELECT * FROM uc_order_products WHERE order_id ='$argument'";
+	$db_result = db_query($query);
+	foreach ($db_result as $record) 
+	{
+		$list[$record->nid] = $record->title;
+		$qty = $record->qty;
+		$price = $record->price;
+				
+	}
+//create a select list of products in the order
+  $form ['deliver']['product'] = array(
+ '#type' => 'select',
+ '#title' => t('Product'),
+ '#options' => $list,
+ '#cols' => 10,
+  '#multiple' => FALSE,
+ );
+  
+ //create quantity text
+ //create a text field called quantity with label quantity to supply
+ $form ['deliver']['quantity'] = array(
+ '#type' => 'textfield',
+ '#title' => t('Quantity Delivered'),
+ '#size' => 20,
+ '#value' => $qty,
+ '#required' => TRUE,
+ );
+ 
+$weight = array();
+  $query="SELECT DISTINCT `weight_units` as units FROM  `uc_products` ";
+	$db_result = db_query($query);
+	foreach ($db_result as $record) 
+	{
+		$weight[$record->units] = $record->units;
+				
+	}
+  $form ['deliver']['uom'] = array(
+ '#type' => 'select',
+ '#title' => t('UOM'),
+ '#options' => $weight,
+ '#cols' => 10,
+ '#multiple' => FALSE,
+ 
+ 
+  );
+  //submit button 
+  $form ['deliver']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+  );
+ 
+ 
+ $form['delivery'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Delivery Details'),
+      '#description' => t(show_delivery($argument)),
+	  '#collapsible' => TRUE,
+	  '#collapsed' => FALSE,
+
+
+    );
+ $form['#suffix'] = '</div>';
+  return $form;
+}
+function order_delivery_form_validate($form, &$form_state) {
+  //echo ($form_state['values']['quantity'] );
+  
+ if(!is_numeric($form_state['values']['product'])|| empty($form_state['values']['product']))
+ {
+	form_set_error('product', t("Select a Product"));
+ }
+	elseif(!is_numeric($form_state['values']['farmer']) || empty($form_state['values']['farmer']))
+ {
+	form_set_error('farmer', t("Select a Farmer"));
+ }
+ elseif( empty($form_state['values']['uom']))
+ {
+	form_set_error('uom', t("Please Enter the UOM"));
+ }
+ elseif(!is_numeric($form_state['values']['quantity']) || empty($form_state['values']['quantity']))
+ {
+	form_set_error('quantity', t("Please Enter a valid Quantity (HINT: Must be a number!)"));
+ }
+
+ elseif (($form_state['values']['quantity'] > get_amount_allocated ($form_state['values']['orderID'], $form_state['values']['product'], $form_state['values']['farmer'])))
+ {
+	//$remainingqty = get_amount_allocated(($form_state['values']['orderID'])) - $form_state['values']['quantity'];
+	form_set_error('quantity', t("Quantity entered is greater than the allocated amount )"));
+ }
+ 
+}
+
+
+
+//WE SAVE THE ITEMS TO THE DB
+function order_delivery_form_submit($form, &$form_state) 
+{
+	//get a better fix for this
+	
+	  $order_No = variable_get('order_id','');
+      //echo $order_No ;
+	
+	
+	//CHECK IF THE ALLOCATION EXISTS
+	$sql_check = "SELECT COUNT( * ) AS existingitems, o_d.order_delivery_id	 as primary_key, o_d.allocation_id as allocation
+				  FROM order_delivery AS o_d
+				  JOIN order_allocation AS o_a ON o_d.allocation_id = o_a.order_allocation_id
+				   WHERE o_a.productid = '".$form_state['values']['product']."'and o_a.uid='".$form_state['values']['farmer']."' and o_a.order_id = $order_No ";
+				 // echo $sql_check."sql check";
+	$db_check = db_query($sql_check);
+	foreach ($db_check as $db_record) 
+	{
+		$existingitems = $db_record->existingitems;
+		$key = $db_record->primary_key;
+		$allocation = $db_record->allocation;
+				
+	}
+	if ($existingitems != 0)
+	{
+		$SQL = "UPDATE order_delivery set qty_delivered = '".$form_state['values']['quantity']."', uom = '".$form_state['values']['uom']."' WHERE order_delivery_id = $key";
+		update_delivery_order_status($order_No);
+		db_query($SQL);
+		drupal_set_message(t('Your delivery has been saved.'));
+		//echo $SQL;
+	}
+	else
+	{
+		
+		$get_allocation_id = "SELECT COUNT( * ) AS items,o_a.order_allocation_id as allocation
+				              FROM order_allocation as o_a
+				              WHERE o_a.productid = '".$form_state['values']['product']."'and o_a.uid='".$form_state['values']['farmer']."' ";
+        
+	   
+		$db_check = db_query($get_allocation_id);
+
+	
+			foreach ($db_check as $db_record) 
+			{
+				
+				$allocation = $db_record->allocation;
+				$count = $db_record->items;
+						
+			}
+			 
+		if($count == 0 )
+		{
+			drupal_set_message(t('Selected product not allocated to this farmer '), $type = 'error');
+			
+			
+		}
+		else
+		{
+			
+				$SQL = "INSERT INTO order_delivery (allocation_id, qty_delivered, uom) VALUES ( '".$allocation."', '".$form_state['values']['quantity']."', '".$form_state['values']['uom']."')";
+				//echo $sql;
+				$sql = "Update order_allocation set supplied = 1 where order_allocation_id = $allocation";
+			    $result = db_query($sql);
+				db_query($SQL);
+				drupal_set_message(t('Your delivery has been saved.'));
+		}
+		
+		update_delivery_order_status($order_No);
+		
+		
+    }		
+			
+    }
+	
+//SOME VALIDATIONS THAT ARE REQUIRED
+function get_amount_allocated ($orderid, $product, $user)
+{
+	$query="SELECT qty, productid, uid 
+	       FROM  `order_allocation` 
+           WHERE  `order_id` = $orderid and productid = $product and uid = $user";
+	echo $query;		
+	
+	$db_result = db_query($query);
+	foreach ($db_result as $record) 
+	{
+		$amountallocated = $record->qty;
+				
+	}
+	
+	return $amountallocated;
+}
+
+
+
+
+function get_allocations($argument)
+{
+	$sql ="SELECT  order_allocation_id as id, oa.uid as uid, name, n.nid as nid, n.title, qty, uom,  supplied, format(price,2) as price, FORMAT(  `qty` *  `price` , 2 ) AS total
+		   FROM order_allocation AS oa
+		   JOIN node AS n ON n.nid = oa.`productid` 
+		   JOIN users ON oa.uid = users.uid 
+		   Where oa.order_id = $argument";
+		$db_result = db_query($sql);
+		
+		$rows = array();
+		 $header = array();
+		 $header[] = 'Farmer';
+		 $header[] = 'Product';
+		 $header[] = 'Quantity';
+		 $header[] = 'UOM';
+		 $header[] = 'Price';
+		 $header[] = 'Total';
+		 $header[] = 'Delivered';
+		 $header[] = 'Operations';
+		
+		$row = array();
+	foreach ($db_result as $record) 
+	{
+		$sup = $record->supplied;
+		if($sup == '1')
+		{
+			$supplied = "Yes";
+		}
+		else
+		{
+			$supplied = "No";
+		}
+		
+		 $row [] = array(
+			  // output 1 cell in 1 row   l($node->title, 'node/'. $node->nid .'/edit'),
+			    array('data' => l($record->name, 'user/'.$record->uid)), 
+				array('data' => l($record->title, 'node/'.$record->nid)), 
+			 
+			
+			   // third cell
+			  array('data' => t($record->qty)), 
+			  array('data' => t($record->uom)),
+			  // fourth cell  
+			  
+			  array('data' => t($record->price)),
+			  array('data' => t($record->total)),
+			  // fifth cell  
+			  array('data' => t($supplied)),
+			  array('data' => l('Cancel', 'order_cancellation/'.$record->id)) 
+			); 
+			
+			
+		//$amountallocated = $record->qty;
+		
+				
+	}
+	return theme('table', array('header' => $header, 'rows'=> $row));
+}
+
+function show_products($argument)
+{
+	
+$sql ="SELECT node.nid AS nid, node.title AS region, uc_o.uid, uc_o_p.order_id, uc_o_p.title, model, qty, price, qty * price AS total,  weight_units
+		FROM  `uc_order_products` AS uc_o_p
+		JOIN uc_orders AS uc_o ON uc_o.order_id = uc_o_p.`order_id` 
+		JOIN  `field_data_field_user_region` ON uc_o.uid =  `entity_id` 
+		JOIN node ON node.nid =  `field_user_region_target_id` 
+		WHERE uc_o_p.order_id = $argument";
+		$db_result = db_query($sql);
+		
+		$rows = array();
+		 $header = array();
+		 $header[] = 'Product';
+		 $header[] = 'Description';
+		 $header[] = 'Quantity';
+		 $header[] = 'UOM';
+		 $header[] = 'Region';
+		 $header[] = 'Price';
+		 $header[] = 'Total';
+		 
+		
+		$row = array();
+	foreach ($db_result as $record) 
+	{
+		 $row [] = array(
+			  // output 1 cell in 1 row   l($node->title, 'node/'. $node->nid .'/edit'),
+			  array('data' => t($record->model)), 
+			  // second cell
+			  array('data' => l($record->title, 'content/'.$record->title)), 
+			   // third cell
+			  array('data' => t($record->qty)), 
+			  array('data' => t($record->weight_units)), 
+			  array('data' => l($record->region, 'node/'.$record->nid)),
+			  // fourth cell  
+			  array('data' => t($record->price)),
+			  array('data' => t($record->total)),
+			   
+			  // fifth cell  
+			  //array('data' => l('Cancel', 'order_cancellation/'.$record->id)) 
+			); 
+		//$amountallocated = $record->qty;
+				
+	}			
+	
+	return theme('table', array('header' => $header, 'rows'=> $row));
+}
+
+function show_delivery($argument)
+{
+
+	/*$sql ="SELECT uc_o.uid, name, uc_o_p.order_id, uc_o_p.title, weight_units, qty_delivered as qty
+		FROM  `uc_order_products` AS uc_o_p
+		JOIN uc_orders AS uc_o ON uc_o.order_id = uc_o_p.`order_id` 
+		JOIN  `field_data_field_user_region` ON uc_o.uid =  `entity_id` 
+		JOIN node ON node.nid =  `field_user_region_target_id` 
+		JOIN order_allocation AS o_a ON o_a.order_id = uc_o_p.`order_id` 
+		JOIN order_delivery AS o_d ON o_d.allocation_id = o_a.order_allocation_id
+		JOIN users ON users.uid = uc_o.uid
+		WHERE uc_o_p.order_id = $argument";*/
+		
+ $sql = "SELECT od.`qty_delivered` AS qty, od.`uom` AS uom, name, title, FORMAT( price, 2 ) AS price, FORMAT( price * od.qty_delivered, 2 ) AS total
+		FROM  `order_delivery` AS od
+		JOIN order_allocation AS oa ON od.`allocation_id` = oa.order_allocation_id
+		JOIN users ON users.uid = oa.uid
+		JOIN node ON nid = oa.productid
+		WHERE oa.order_id = $argument";	
+		$db_result = db_query($sql);
+		
+		$rows = array();
+		 $header = array();
+		 $header[] = 'Farmer';
+		 $header[] = 'Product';
+		 $header[] = 'Quantity';
+		 $header[] = 'UOM';
+		 $header[] = 'Price';
+		 $header[] = 'Total';
+		 $header[] = 'Inspected';
+		 
+		 
+	
+		$row = array();
+	foreach ($db_result as $record) 
+	{
+		
+		 $row [] = array(
+			  // output 1 cell in 1 row   l($node->title, 'node/'. $node->nid .'/edit'),
+			  array('data' => l($record->name, 'node/'.$record->name)), 
+			  // second cell
+			  array('data' => l($record->title, 'content/'.$record->title)), 
+			   // third cell
+			  array('data' => t($record->qty)), 
+			  array('data' => t($record->uom)),
+			  array('data' => t($record->price)), 
+			  array('data' => t($record->total)),
+			  array('data' => t('No')),
+			 
+			); 
+		
+				
+	}
+	return theme('table', array('header' => $header, 'rows'=> $row));
+}
+
+function update_delivery_order_status($argument)
+{
+	$sql = "SELECT SUM( oa.`qty`) as allocated FROM order_allocation AS oa 	WHERE oa.`order_id` = $argument";
+	$db_result = db_query($sql);
+	foreach ($db_result as $record) 
+	{
+		$qty_allocated = $record->allocated;
+	}
+	
+	$sql = "SELECT sum(`qty`) as order_quantity FROM `uc_order_products` WHERE `order_id` = $argument";
+	$db_result = db_query($sql);
+	foreach ($db_result as $record) 
+	{
+		$order_quantity = $record->order_quantity;
+	}
+	
+	$sql = "SELECT SUM(od.`qty_delivered`) AS delivered
+			FROM order_delivery AS od
+			JOIN order_allocation AS oa ON oa.order_allocation_id = od.`allocation_id` 
+			WHERE oa.`order_id` = $argument";
+	$db_result = db_query($sql);
+	foreach ($db_result as $record) 
+	{
+		$qty_delivered = $record->delivered;
+	}		
+			
+			
+	if( $qty_delivered == 0 && $qty_allocated == 0)
+	{
+		$sql = "Update uc_orders set order_status = 'pending' where order_id = $argument";
+		$db_result = db_query($sql);
+	}
+	else if ($qty_delivered == 0 || $qty_allocated == $order_quantity)
+	{
+		$sql = "Update uc_orders set order_status = 'allocated' where order_id = $argument";
+		$db_result = db_query($sql);
+	}
+	else if ($qty_delivered < $order_quantity)
+	{
+		$sql = "Update uc_orders set order_status = 'partially_delivered' where order_id = $argument";
+		$db_result = db_query($sql);
+	}
+	else
+	{
+		$sql = "Update uc_orders set order_status = 'delivered' where order_id = $argument";
+		$db_result = db_query($sql);
+	}
+}

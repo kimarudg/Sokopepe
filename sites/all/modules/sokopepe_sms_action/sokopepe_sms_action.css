@@ -1,0 +1,43 @@
+@charset "utf-8";
+/* CSS Document */
+.sokopepe_sms_action .form-type-select, input {
+ /* padding:15px;
+  display:inline;*/
+ display:table-cell;
+ padding: 10px;
+ /*background-color:#CC0033;*/
+
+}
+.sokopepe_sms_action .form-type-textfield, input{
+ /* padding:15px;
+  display:inline;*/
+ display:table-cell;
+ padding: 10px;
+
+
+}
+
+.sokopepe_sms_action .form-submit{
+ display:table-cell;
+  padding: 3px; 
+
+}
+.sokopepe_sms_action .readonly-input { background: none repeat scroll 0 0 #EAEAEA; }
+
+/*.form-type-select, input {
+   
+   display:table-cell;
+    padding: 10px;      
+}
+
+div.form-type-textfield, input[readonly='readonly'] {
+
+border:#FF0000;
+}
+input.form-submit{
+background-color:#FF0000;
+}
+input[readonly="readonly"]
+{
+    background-color:blue;
+}*/

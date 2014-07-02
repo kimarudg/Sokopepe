@@ -1,0 +1,183 @@
+<?php
+function sokopepe_sms_action_menu(){
+$menu = array();
+
+  $menu['admin/sokopepe_sms_actions'] = array(
+    'title' => t('Actions for the SMS'),
+    'page callback' => 'list_all_my_sms_actions',
+    'access arguments' => array('access content'),
+	'type' => MENU_CALLBACK,
+  );
+   $menu['admin/sokopepe/sms_actions/'] = array(
+    'title' => t('Actions for the SMS'),
+    'page callback' => 'delete_edit_action',
+    'access arguments' => array('access content'),
+	'type' => MENU_CALLBACK,
+  );
+ 
+    
+  return $menu;
+}
+//menu 1
+function list_all_my_sms_actions ()
+{
+	$returnable_html = '';
+	$myform = drupal_get_form('add_sokopepe_sms_action_form');
+    	$returnable_html .= drupal_render($myform);
+	$content = drupal_get_form('sokopepe_sms_action_form');
+    	$returnable_html .= drupal_render($content);
+    
+           
+    		return $returnable_html;
+}
+function delete_edit_action ()
+{
+	$returnable_html = 'arg3 is '.arg(3);
+           
+    		return $returnable_html;
+}
+
+function sokopepe_sms_action_form ($form, $form_state)
+{
+	$form['sms_action'] = array(
+		'#type' => 'fieldset', 
+    	'#title' => t('Message Actions'), 
+		'#collapsible' => TRUE,
+			);
+			
+	$form['#prefix'] = '<div class="sokopepe_sms_action">';
+	$form['#sms_action']['css'] = array(
+    drupal_get_path('module', 'sokopepe_sms_action') . '/sokopepe_sms_action.css',
+		);
+	$sql = "SELECT * FROM sokopepe_sms_action";
+	$db_result = db_query($sql);
+	
+	$rows = array();
+	$row = array();
+	$header = array();
+	
+	$header[] = 'Base ID';
+	$header[] = 'Keyword';
+	$header[] = 'Crop';
+	$header[] = 'Region';
+	$header[] = 'Return Message';
+	$header[] = 'Edit / Delete';
+	
+	foreach ($db_result as $record) 
+	{
+		$row[$record->s_action_id] =array(
+				array('data' => t($record->s_action_id)),
+				array('data' => t($record->key_word)),
+				array('data' => t($record->crop)),
+				array('data' => t($record->region)),
+				array('data' => t($record->return_message)),
+				
+				array('data' => l('Edit', 'admin/sokopepe/sms_actions/'.$record->s_action_id.'/edit').' '.l('Delete', 'admin/sokopepe/sms_actions/'.$record->s_action_id.'/delete')),
+				//array('data' => l('Edit', 'admin/sokopepe/sms_actions/'.$record->s_action_id.'/edit/').' '.l('Delete', 'admin/sokopepe/sms_actions/'.$record->s_action_id.'/delete/')),
+				
+		
+		);
+	}
+	
+		
+		$form['sms_action']['table'] = array(
+		'#type' => 'tableselect',
+		'#header' => $header,
+		'#options' => $row,
+		'#empty' => t('No actions found'),
+		);
+		
+		
+	$actionstodo['select'] = 'Select Action';
+	$actionstodo['delete'] = 'Delete';
+	$form ['sms_action']['actionstodo'] = array(
+         '#type' => 'select',
+         '#title' => t('With Selected'),
+         '#options' => $actionstodo,
+         '#cols' => 10,
+		 '#multiple' => FALSE,
+	);
+	$form['sms_action']['submit'] = array(
+		'#type' => 'submit',
+		'#value' => t('Submit'),
+		);
+	
+	$form['#suffix'] = '</div>';
+	
+	
+	return $form;
+}
+function add_sokopepe_sms_action_form ($form, $form_state)
+{
+	drupal_add_css(drupal_get_path('module', 'sokopepe_sms_action') . '/sokopepe_sms_action.css', array('group' => CSS_DEFAULT, 'type' => 'file'));
+	$form['#prefix'] = '<div class="sokopepe_sms_action">';
+	$form['action'] = array(
+		'#type' => 'fieldset', 
+		'#title' => t('Add SMS Action'), 
+		//'#attributes' => array('class' => array('container-inline')), 
+		//'#access' => $admin_access,
+		);
+	$form['action']['keyword'] = array(
+		'#type' => 'textfield',
+		'#size'=> 25,
+		'#default'=>0,
+		'#title' => t('Key Word'),
+		);
+	$form['action']['crop'] = array(
+		'#type' => 'textfield',
+		'#size'=> 25,
+		'#default'=>0,
+		'#title' => t('Produce'),
+		);
+	$form['action']['region'] = array(
+		'#type' => 'textfield',
+		'#size'=> 25,
+		'#default'=>0,
+		'#title' => t('Region'),
+		);
+	$form['action']['return'] = array(
+		'#type' => 'textfield',
+		'#size'=> 25,
+		'#default'=>0,
+		'#title' => t('Text to Send'),
+		);
+	
+	$form['action']['submit'] = array(
+		'#type' => 'submit',
+		'#value' => t('Save'),
+		);
+  $form['#suffix'] = '</div>';
+	 return $form;
+}
+function add_sokopepe_sms_action_form_validate($form, &$form_state)
+{
+	if($form_state['values']['keyword'] == NULL || empty($form_state['values']['keyword']))
+	 {
+		form_set_error('keyword', t("Please a Key word!"));
+	 }
+	 elseif (strtoupper($form_state['values']['keyword']) == 'PRICE' || strtoupper($form_state['values']['keyword']) == 'ORDER' || strtoupper($form_state['values']['keyword']) == 'REG' || strtoupper($form_state['values']['keyword'] == 'REGISTER'))
+	 {
+		form_set_error('keyword', t("Keyword ".$form_state['values']['keyword']." is a system keyword and is already defined!"));
+	 }
+	 if($form_state['values']['return'] == NULL || empty($form_state['values']['return']))
+	 {
+		form_set_error('return', t("Enter the return message!"));
+	 }
+}
+function add_sokopepe_sms_action_form_submit($form, &$form_state)
+{
+	
+	$sql = "INSERT INTO sokopepe_sms_action (key_word, crop, region, return_message) VALUES ('".strtoupper($form_state['values']['keyword'])."', '".strtoupper($form_state['values']['crop'])."', '".strtoupper($form_state['values']['region'])."', '".strtoupper($form_state['values']['return'])."')"; 
+	$db_sql = db_query($sql);
+	drupal_set_message(t('The action has been created'));
+	
+	
+}
+function sokopepe_sms_action_form_submit ($form, $form_state)
+{
+	$resultsarray = $form_state['values']['table'];
+	foreach($resultsarray as $key => $value) 
+	{
+		drupal_set_message($resultsarray[$key]);
+	}
+}

@@ -1,0 +1,7 @@
+name = "Hide Tabs on User Profile"
+description = "Hides menus on the user profile page"
+core = 7.x
+package = Sokopepe - intelligent Technologies Ltd
+
+
+

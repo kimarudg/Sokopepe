@@ -1,0 +1,146 @@
+<?php 
+
+function product_inspection_schema(){
+	// user_products table schema
+  $schema['product_inspection'] = array(
+    'description' => 'What Inspection need to be carried out on a product',
+    'fields' => array(
+      'product_inspectionid'=> array( //Primary key
+        'description'       => 'Primary Key',
+        'type'              => 'serial',
+        'unsigned'			=> TRUE,
+        'not null'          => TRUE,
+        ),
+      'productid'           => array(
+        'description'       => 'Product ID',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => TRUE,
+      ),
+	  'inspectionID'           => array(
+        'description'       => 'inspectionID',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'max_value'           => array(
+        'description'       => 'Max Value',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'min_value'           => array(
+        'description'       => 'Min Value',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+     'rec_value'              => array(
+        'description'     => 'Recomended Value',
+        'type'            => 'int',
+        'size'            => 'big',
+		'not null'        => TRUE,
+      ),
+	  'operator'              => array(
+        'description'     => 'less than or Greater than',
+        'type'            => 'varchar',
+        'length'            => '45',
+      )
+    ),
+    'primary key' => array('product_inspectionid'),
+    'indexes'       =>  array(
+                          'productinspectionID' => array('product_inspectionID')
+                        ),
+    ); 
+	
+	
+$schema['inspection'] = array(
+    'description' => 'Inspections for the Products for sale',
+    'fields' => array(
+      'inspection_id'             => array( //Primary key
+        'description'       => 'Primary Key: Inspection ID',
+        'type'              => 'serial',
+		'unsigned'			=> TRUE,
+        'not null'          => TRUE,
+        ),
+      'inspection_name'           => array(
+        'description'       => 'Name of Insoection, eg afflatoxin, moisture',
+        'type'              => 'varchar',
+        'length'              => '200',
+      ),
+	  'body'           => array(
+        'description'       => 'details about the inspection',
+        'type'              => 'text',
+      ),
+	  'remarks'           => array(
+        'description'       => 'Remarks',
+        'type'              => 'text',
+      ),
+     'date_added'              => array(
+        'description'           => 'Date Added',
+        'type'                  => 'datetime',
+        'mysql_type'            => 'DATETIME',
+        'not null'              => FALSE,
+      )
+    ),
+    'primary key' => array('inspection_id'),
+    'indexes'       =>  array(
+                          'inspectionid' => array('inspection_id')
+                        ),
+    ); 
+	
+	
+$schema['product_score'] = array(
+    'description' => 'Inspections results for the product',
+    'fields' => array(
+      'score_id'             => array( //Primary key
+        'description'       => 'Primary Key',
+        'type'              => 'serial',
+		'unsigned'			=> TRUE,
+        'not null'          => TRUE,
+        ),
+      'user_product_id'           => array(
+        'description'       => 'Original user Product',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'inspection'           => array(
+        'description'       => 'crop inspection id',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'score'           => array(
+        'description'       => 'Score for the crop',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'qty_passed'           => array(
+        'description'       => 'Quantity Passed',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'qty_failed'           => array(
+        'description'       => 'Quantity Failed',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+     'date_added'              => array(
+        'description'           => 'Date Added',
+        'type'                  => 'datetime',
+        'mysql_type'            => 'DATETIME',
+        'not null'              => FALSE,
+      )
+    ),
+    'primary key' => array('score_id'),
+    'indexes'       =>  array(
+                          'scoreid' => array('score_id')
+                        ),
+    ); 
+	
+  return $schema;
+}

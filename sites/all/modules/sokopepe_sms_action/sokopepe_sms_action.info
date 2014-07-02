@@ -1,0 +1,6 @@
+name = Sokopepe SMS Actions
+description = Use this module to specify keywords as well as actions and return messages
+package = Sokopepe - intelligent Technologies Ltd
+core = 7.x
+version = "7.x-1.x"
+

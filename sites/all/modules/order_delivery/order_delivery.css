@@ -1,0 +1,27 @@
+@charset "utf-8";
+/* CSS Document */
+.order_delivery .form-type-select, input {
+display:table-cell;
+  padding: 15px;
+   display:inline-block
+
+
+}
+.order_delivery .form-type-textfield, input{
+display:table-cell;
+  padding: 15px;
+   display:inline-block
+ 
+
+
+}
+
+.order_delivery .form-submit{
+
+ padding: 10px;
+ width:20%;
+
+
+}
+.order_delivery .readonly-input { background: none repeat scroll 0 0 #EAEAEA; }
+

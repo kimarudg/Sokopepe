@@ -1,0 +1,8 @@
+name = Sokopepe Product Inspection
+description = Use this to create inpections for the products
+package = Sokopepe - intelligent Technologies Ltd
+php = 5.0
+core = 7.x
+dependencies[] = uc_product
+ 
+

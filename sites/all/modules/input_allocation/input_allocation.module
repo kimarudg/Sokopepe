@@ -1,0 +1,935 @@
+<?php
+function input_allocation_menu(){
+$items = array();
+
+$items['admin/sokopepe/input_allocations'] = array(
+'title' => t('Input Purchase Allocation'),
+'page callback' => 'purchase_input_a_page',
+ 'access arguments' => array('access content'),
+'type' => MENU_CALLBACK,
+ );
+ 
+$items['user/%user/inputallocations']  = array(
+'title' => t('Allocations'),
+'page callback' => 'purchase_input_frontend',
+ 'access arguments' => array('access content'),
+'type' => MENU_LOCAL_TASK, //rendered as tab
+//'type' => MENU_CALLBACK, // rendered as page
+ );
+
+
+ /*
+ $items['admin/sokopepe/input_cancellation'] = array(
+'title' => t('Order Cancellation'),
+'page callback' => 'order_cancellation_page',
+ 'access arguments' => array('access content'),
+'type' => MENU_CALLBACK,
+ );
+ 
+ $items['admin/sokopepe/input_aggregation'] = array(
+'title' => t('Order Cancellation'),
+'page callback' => 'order_cancellation_page',
+ 'access arguments' => array('access content'),
+'type' => MENU_CALLBACK,
+ );
+ 
+  // 
+  */
+	
+ return $items; 
+}
+
+
+function purchase_input_a_page() {
+   
+	$returnable_html = '';
+    $content = drupal_get_form('purchase_input_form');
+    $returnable_html .= drupal_render($content);
+    
+    //$myform = drupal_get_form('publish_in_form');
+    $myform = drupal_get_form('input_allocation_form');
+    $returnable_html .= drupal_render($myform);
+    
+    //$returnable = drupal_get_form('input_allocation_form');
+    //$returnable_html .= drupal_render($returnable);
+    
+    return $returnable_html;
+}
+
+
+function purchase_input_frontend()
+{
+	$returnable_html = '';
+	
+	//create a table for products allocated to a user
+	//service_providers_allocations
+	$allocations = drupal_get_form('service_providers_allocations_prod_form');
+	$returnable_html .= drupal_render($allocations);
+	//table that contains products that the service provider can supply
+	 	$content = drupal_get_form('service_providers_allocations_form');
+    		$returnable_html .= drupal_render($content);
+	
+	return $returnable_html;
+}
+
+
+
+function input_allocation_form($form, $form_state) {
+  
+  $form['#prefix'] = '<div class="input_allocation">';
+  $form['#alloctableset']['css'] = array(
+    drupal_get_path('module', 'input_allocation') . '/input_allocation.css',
+  );
+  
+  $sql =
+"SELECT so.uid as uid,title,node.nid as nid, field_service_subtype_value AS subtype, field_service_sku_value AS sku, name, SUM(qty) as qty, price, uom, FORMAT( qty * price, 2 ) AS total, so.allocated, so.status
+		FROM purchase_input AS so
+		JOIN users ON users.uid = so.uid
+		JOIN node ON node.nid = so.serviceid
+		LEFT JOIN field_data_field_service_subtype AS subtype ON subtype.entity_id = node.nid
+		JOIN field_data_field_service_sku AS sku ON sku.entity_id = node.nid where so.allocated = 0 GROUP BY node.nid";
+		$db_result = db_query($sql);
+		
+		$rows = array();
+		 $header = array();
+		 $header[] = 'Farmer';
+		 $header[] = 'Product';
+		 $header[] = 'Description';
+		 $header[] = 'Subtype';
+		 $header[] = 'Quantity';
+		 $header[] = 'UOM';
+		 $header[] = 'Allocated';
+		 $header[] = 'Fulfilled';
+		 //$header[] = 'Price';
+		// $header[] = 'Total';
+		// $header[] = 'Operations';
+		
+		$row = array();
+  
+  foreach ($db_result as $record) {
+  $supplied = TRUE;
+  if ($record->status)
+  {
+  	$supplied = 'Yes';
+  }
+  else
+  {
+  	$supplied = 'No';
+  }
+  if ($record->allocated)
+  { 
+   	$allocatedstatus ='Yes';
+  } 
+  else 
+  { 
+  	$allocatedstatus = 'No';
+  }
+    $row[$record->nid] =array(
+      array('data' => l($record->name, 'user/'.$record->uid)),
+      array('data' => t($record->sku)),
+      array('data' => l($record->title, 'node/'.$record->nid)),
+      array('data' => t($record->subtype)), 
+      array('data' => t($record->qty)),
+      array('data' => t($record->uom)),
+      array('data' => t($allocatedstatus )) ,//t($record->allocated)),
+      array('data' => t($supplied )),
+      //array('data' => t($record->price)),
+      //array('data' => t($record->total)),
+      
+    );
+  }
+  
+  $form['alloctableset'] = array(
+	'#type' => 'fieldset', 
+    	'#title' => t('Allocations'), 
+	'#collapsible' => TRUE,
+  );
+  		
+  		
+  $form['alloctableset']['table'] = array(
+    '#type' => 'tableselect',
+    '#header' => $header,
+    '#options' => $row,
+    '#empty' => t('No allocation found'),
+  );
+  
+  $actionstodo['publish'] = 'Publish to Suppliers';
+  $actionstodo['allocate'] = 'Allocate Supplier';
+  $form ['alloctableset']['actionstodo'] = array(
+         '#type' => 'select',
+         '#title' => t('With Selected'),
+         '#options' => $actionstodo,
+         '#cols' => 10,
+		 '#multiple' => FALSE,
+	);
+		  
+		  
+  
+  		//get the Suppliers
+		  $suppliers = array();
+		  $query="SELECT users.uid as uid, users.name as name
+				  FROM users
+				  JOIN users_roles ON users.uid = users_roles.uid
+				  WHERE  `rid` =5";
+		  $db_result = db_query($query);
+			foreach ($db_result as $record) 
+			{
+				$suppliers[$record->uid] = $record->name;
+						
+			}
+	$form ['alloctableset']['supplier'] = array(
+         '#type' => 'select',
+         '#title' => t('Supplier'),
+         '#options' => $suppliers,
+         '#cols' => 10,
+		 '#multiple' => FALSE,
+		  );
+ 
+  
+  
+  $form['alloctableset']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+  );
+  $form['#suffix'] = '</div>';
+  return $form;
+}
+
+function input_allocation_form_submit($form, &$form_state) 
+{
+	global $user;
+	//$form_state['values']['quantity']
+	//drupal_set_mesage $form_state['values']['table'];
+	//$results = print_r($form_state['values']['table'], true);
+	$resultsarray = $form_state['values']['table'];
+	
+	$products = array();
+	$individualproduct = array();
+	$typeofoperation ='';
+	foreach($resultsarray as $key => $value) {
+	    if ($resultsarray[$key] !=0)
+	    {
+	    	$typeofoperation ='';
+	    	// this is the one which ahs been selected;
+	    	 //we save the allocation to db
+	    	 //if to publish, we omit the supplier id
+	    	 //if allocated, we omit the published
+	    	 //then we update input table so that we do not reselect the product again
+	    	 /*
+	    	 serviceid 
+	    	 supplierid
+	    	 qty
+	    	 price
+	    	 uom
+	    	 published
+	    	 supplied
+	    	 paid
+	    	 creator
+	    	 date_added
+	    	 */
+	    	 //if ($form_state['values']['actionstodo'] == 'publish')
+	    	 //{
+	    	 	//we get the product, and the total qty
+	    	 	$sqlgetproduct = "SELECT SUM(qty) as qty, field_service_sku_value AS sku, node.title, price, uom, so.allocated, so.status
+			FROM purchase_input AS so
+			JOIN users ON users.uid = so.uid
+			JOIN node ON node.nid = so.serviceid
+			LEFT JOIN field_data_field_service_subtype AS subtype ON subtype.entity_id = node.nid
+			JOIN field_data_field_service_sku AS sku ON sku.entity_id = node.nid where so.allocated = 0 and node.nid='".$resultsarray[$key]."' GROUP BY node.nid";
+			$db_sqlgetproduct = db_query($sqlgetproduct);
+			$qty='';
+			$price='';
+			$uom='';
+			foreach ($db_sqlgetproduct as $db_record)
+			{
+				
+				$qty = $db_record->qty;
+				$price = $db_record->price;
+				$uom = $db_record->uom;
+				$title = $db_record->title;
+				$sku = $db_record->sku;
+				
+			}
+			if ($form_state['values']['actionstodo'] == 'publish')
+			{
+				//INSERT TO DB TABLE
+				$sqlinsert = "INSERT INTO input_allocation (serviceid, qty, price, uom, published, creator, date_added) VALUES ('".$resultsarray[$key]."','".$qty."', '".$price."', '".$uom."','1','".$user->uid."','".date('Y-m-d H:i:s')."')";
+				$db_insertres = db_query($sqlinsert);
+				$sq_update = "UPDATE purchase_input SET allocated = 1 WHERE serviceid = ".$resultsarray[$key];
+				$db_insertres = db_query($sq_update);
+				
+				$individualproduct['qty'] = $qty;
+				$individualproduct['title'] = $title;
+				$individualproduct['individual_price'] = $price;
+				$individualproduct['model'] = $resultsarray[$key];
+				$individualproduct['total_price'] = $price * $qty;
+				$individualproduct['details'] = $sku;
+				$products[] = $resultsarray[$key];//$individualproduct;
+				$typeofoperation = 'publish';
+				
+				
+				
+				
+				
+	    	 	}
+		    	 else
+		    	 {
+		    	$sqlinsert = "INSERT INTO input_allocation (serviceid, qty, price, uom, supplierid, creator, date_added) VALUES ('".$resultsarray[$key]."','".$qty."', '".$price."', '".$uom."','".$form_state['values']['supplier']."','".$user->uid."','".date('Y-m-d H:i:s')."')";
+				$db_insertres = db_query($sqlinsert);
+				$sq_update = "UPDATE purchase_input SET allocated = 1 WHERE serviceid = ".$resultsarray[$key];
+				$db_insertres = db_query($sq_update);
+				$individualproduct['qty'] = $qty;
+				$individualproduct['title'] = $title;
+				$individualproduct['individual_price'] = $price;
+				$individualproduct['model'] = $resultsarray[$key];
+				$individualproduct['total_price'] = $price * $qty;
+				$individualproduct['details'] = $sku;
+				$products[] =$resultsarray[$key];// $individualproduct;
+				
+				$typeofoperation = 'allocate';
+		    	 }
+	    	 
+	    	 
+	    	 
+	    	 
+	    	 
+	    }
+	    
+	}
+	//if type of command is allocate, we send to one user
+	//if it is publish, we send to all users,
+	//lets start with the difficult one ie sending to all users:
+	if ($typeofoperation == 'publish')
+	{
+				//get all users whose rid = 5
+				//SEND NOTIFICATIONS
+				$supplierquery="SELECT users.uid as uid, users.name as name, sms_user.number, mail FROM users JOIN users_roles ON users.uid = users_roles.uid LEFT OUTER JOIN sms_user on users.uid = sms_user.uid WHERE  `rid` =5";
+			  	$db_result = db_query($supplierquery);
+				foreach ($db_result as $record) 
+				{
+					$suppliers[$record->uid] = $record->name;
+					$emailto =  $record->mail;
+					$params = array('msg' => send_an_email ($record->name, $products));
+				
+					//send SMS
+					if ($record->mail != '')
+					{
+						sms_send($record->number, 'An Order has been raised on '.variable_get('uc_store_name', '').'. Please visit '.$GLOBALS['base_url'].'/user/'.$record->uid.' to get more details');
+					}
+					//
+					drupal_mail('input_allocation', 'invitation', $emailto, language_default(), $params);
+						
+				}
+			
+			
+			
+			////////////////////
+	}
+	else
+	{
+				//get all users whose rid = 5
+				//SEND NOTIFICATIONS
+				$supplierquery="SELECT users.uid as uid, users.name as name, sms_user.number, mail FROM users JOIN users_roles ON users.uid = users_roles.uid LEFT OUTER JOIN sms_user on users.uid = sms_user.uid WHERE  `rid` =5 AND users.uid = '".$form_state['values']['supplier']."'";
+			  	$db_result = db_query($supplierquery);
+				foreach ($db_result as $record) 
+				{
+					$suppliers[$record->uid] = $record->name;
+					$emailto =  $record->mail;
+					$params = array('msg' => send_an_email ($record->name, $products));
+				
+					//send SMS
+					if ($record->mail != '')
+					{
+						sms_send($record->number, 'An Order has been raised on '.variable_get('uc_store_name', '').'. Please visit '.$GLOBALS['base_url'].'/user/'.$record->uid.' to get more details');
+					}
+					//
+					drupal_mail('input_allocation', 'invitation', $emailto, language_default(), $params);
+						
+				}
+	}
+	drupal_set_message(t('Operation has been Saved'));
+	
+}
+
+
+
+
+function input_allocation_mail($key, &$message, $params) {
+  switch ($key) {
+    case 'invitation':
+      //$message['subject'] = t('Hello ');
+      
+      
+      		
+      	     $message['subject'] = t('Requisition raised on Sokopepe Platform');
+              /* the email body is here, inside the $message array */
+              $body = array($params['msg']);
+              $message['body'] = $body;
+              $message['headers']['Content-Type'] = 'text/html; charset=UTF-8; format=flowed';
+      
+      //$message['body'] = array($params['msg']);
+      	
+      	
+      	
+      	
+      break;    
+  }
+}
+
+
+function send_an_email ($user_to_send_to, $products)
+{
+	$supplier = user_load($user_to_send_to);
+	$str ='<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">';
+    $str .='<table width="95%" border="0" cellspacing="0" cellpadding="1" align="center" bgcolor="#006699" style="font-family: verdana, arial, helvetica; font-size: small;">
+  <tr>
+    <td> 
+      <table width="100%" border="0" cellspacing="0" cellpadding="5" align="center" bgcolor="#FFFFFF" style="font-family: verdana, arial, helvetica; font-size: small;">
+        <tr valign="top">
+          <td>
+            <table width="100%" style="font-family: verdana, arial, helvetica; font-size: small;">
+              <tr>
+                <td>';
+                    
+        if (theme_get_setting('logo')) {
+          $image = array(
+            'path' => theme_get_setting('logo', 'tb_purity'),
+            'alt' => 'my logo',
+          );
+          $str .= theme('image', $image); 
+    }
+    
+     $str .='</td>
+                <td width="98%">
+                  <div style="padding-left: 1em;">
+                  <span style="font-size: large;">';
+                  $str .= variable_get('uc_store_name', '');
+                  $str .= '</span><br />';
+                  $str .= variable_get('site_slogan');
+                  
+                  $str .='  </div>
+                </td>
+                <td nowrap="nowrap">';
+                
+                $str .= uc_store_address();
+                
+                $str .= '</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr valign="top">
+          <td>
+
+            
+            <p><b>';
+            //selecting the appropriate salutation for the user
+             $str .= t('Dear '.$supplier);
+             $str .= '</b></p>';
+             
+             $str .= '<p><b> Please deliver the items below as requested on '.variable_get('uc_store_name', '').'</b><br />';
+             $link = $GLOBALS['base_url']; 
+            $str .= 'If you need to check the status of your requisition, please visit our home page at '.$link.' and click on "My account" in the menu or login with the following link:';
+            $str .= '<br /><br />'.$link.'/user/'.$supplier.' </p>';
+            
+            
+            $str .= '<table cellpadding="4" cellspacing="0" border="0" width="100%" style="font-family: verdana, arial, helvetica; font-size: small;">
+              <tr>
+                <td colspan="2" bgcolor="#006699" style="color: white;">
+                  <b>Requisition Information: </b>
+                </td>
+              </tr>
+              <tr>
+                <td nowrap="nowrap">
+                  <b> E-mail Address </b>
+                </td>
+                <td width="98%">
+                  '.$supplier.'
+                </td>
+              </tr>
+              
+              <tr>
+                <td colspan="2" bgcolor="#006699" style="color: white;">
+                  <b>Order Summary: </b>
+                </td>
+              </tr>';
+              
+              
+              
+                $str .= '<tr>
+                <td colspan="2">
+
+                  <table border="0" cellpadding="1" cellspacing="0" width="100%" style="font-family: verdana, arial, helvetica; font-size: small;">
+                    
+
+                    <tr>
+                      <td nowrap="nowrap">
+                        <b>Order Date: </b>
+                      </td>
+                      <td width="98%">
+                        
+                      </td>
+                    </tr>
+
+                   
+                    <tr>
+                      <td colspan="2">
+                        <br /><br /><b>Products on order: &nbsp;</b>
+
+                        <table width="100%" style="font-family: verdana, arial, helvetica; font-size: small;">';
+			$selectedproducts = $products;
+			//$count = 0;
+                          foreach ($selectedproducts as $key => $value)
+                          {
+                          	//$count = $count +1;
+                              //foreach($product as $currproduct){
+                              
+		                 $getprodsql = "SELECT SUM(qty) as qty, subtype.field_service_subtype_value as stype, field_service_sku_value AS sku, node.title, price, uom, so.allocated, so.status
+				FROM purchase_input AS so
+				JOIN users ON users.uid = so.uid
+				JOIN node ON node.nid = so.serviceid
+				LEFT JOIN field_data_field_service_subtype AS subtype ON subtype.entity_id = node.nid
+				JOIN field_data_field_service_sku AS sku ON sku.entity_id = node.nid where so.serviceid= '".$value."' GROUP BY node.nid";
+				$db_getproduct = db_query($getprodsql);
+				foreach ($db_getproduct as $currproducts)
+				{
+					  $str .= '<tr><td valign="top" nowrap="nowrap"><b>'.$currproducts->qty.'-'.$currproducts->uom.'</b></td>';
+					  $str .= '<td width="98%"><b>'.$currproducts->title.'-'.$currproducts->price * $currproducts->qty.'</b>'.$currproducts->price.'<br />';
+					  $str .= 'SKU: '.$currproducts->sku.'<br />';
+					  $str .= $currproducts->title.'--'.$currproducts->stype.'</td> </tr>';
+                         	}
+                          }
+                       $str .=  '</table>
+
+                      </td>
+                    </tr>
+                  </table>
+
+                </td>
+              </tr>
+              
+              </table>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>';
+
+return $str;
+    
+}
+
+
+
+function send_admin_email ($user_to_send_to, $products)
+{
+	//$supplier = user_load($user_to_send_to);
+	$suppliersql  = "SELECT * FROM users WHERE uid = ".$user_to_send_to;
+	//$supplier = db_query($suppliersql);
+	$db_check = db_query($suppliersql);
+	foreach ($db_check as $supplier) 
+	{
+		$uid = $supplier->uid;
+		$name = $supplier->name;
+		$mail = $supplier->mail;
+	}
+	$currentusertosendto = 'Curr User is '. $user_to_send_to[0].' is the  current user';
+	$str ='<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">';
+    $str .='<table width="95%" border="0" cellspacing="0" cellpadding="1" align="center" bgcolor="#006699" style="font-family: verdana, arial, helvetica; font-size: small;">
+  <tr>
+    <td> 
+      <table width="100%" border="0" cellspacing="0" cellpadding="5" align="center" bgcolor="#FFFFFF" style="font-family: verdana, arial, helvetica; font-size: small;">
+        <tr valign="top">
+          <td>
+            <table width="100%" style="font-family: verdana, arial, helvetica; font-size: small;">
+              <tr>
+                <td>';
+                    
+        if (theme_get_setting('logo')) {
+          $image = array(
+            'path' => theme_get_setting('logo', 'tb_purity'),
+            'alt' => 'my logo',
+          );
+          $str .= theme('image', $image); 
+    }
+    
+     $str .='</td>
+                <td width="98%">
+                  <div style="padding-left: 1em;">
+                  <span style="font-size: large;">';
+                  $str .= variable_get('uc_store_name', '');
+                  $str .= '</span><br />';
+                  $str .= variable_get('site_slogan');
+                  
+                  $str .='  </div>
+                </td>
+                <td nowrap="nowrap">';
+                
+                $str .= uc_store_address();
+                
+                $str .= '</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr valign="top">
+          <td>
+
+            
+            <p><b>';
+            //selecting the appropriate salutation for the user
+             $str .= t('Dear  '.$name);
+             $str .= '</b></p>';
+             
+             $str .= '<p><b> Note that the items below as requested on '.variable_get('uc_store_name', '').' have been picked by a supplier</b><br />';
+             $link = $GLOBALS['base_url']; 
+            $str .= 'If you need to check the status of your requisition, please visit our home page at '.$link.' and click on "My account" in the menu or login with the following link:';
+            $str .= '<br /><br />'.$link.'/user/'.$uid.' </p>';
+            
+            
+            $str .= '<table cellpadding="4" cellspacing="0" border="0" width="100%" style="font-family: verdana, arial, helvetica; font-size: small;">
+              <tr>
+                <td colspan="2" bgcolor="#006699" style="color: white;">
+                  <b>Requisition Information: </b>
+                </td>
+              </tr>
+              <tr>
+                <td nowrap="nowrap">
+                  <b> E-mail Address </b>
+                </td>
+                <td width="98%">
+                  '.$mail.'
+                </td>
+              </tr>
+              
+              <tr>
+                <td colspan="2" bgcolor="#006699" style="color: white;">
+                  <b>Order Summary: </b>
+                </td>
+              </tr>';
+              
+              
+              
+                $str .= '<tr>
+                <td colspan="2">
+
+                  <table border="0" cellpadding="1" cellspacing="0" width="100%" style="font-family: verdana, arial, helvetica; font-size: small;">
+                    
+
+                    <tr>
+                      <td nowrap="nowrap">
+                        <b>Order Date: </b>
+                      </td>
+                      <td width="98%">
+                        
+                      </td>
+                    </tr>
+
+                   
+                    <tr>
+                      <td colspan="2">
+                        <br /><br /><b>Products on order: &nbsp;</b>
+
+                        <table width="100%" style="font-family: verdana, arial, helvetica; font-size: small;">';
+			$selectedproducts = $products;
+			//$count = 0;
+                          foreach ($selectedproducts as $key => $value)
+                          {
+                          	//$count = $count +1;
+                              //foreach($product as $currproduct){
+                              
+		                 $getprodsql = "SELECT SUM(qty) as qty, subtype.field_service_subtype_value as stype, field_service_sku_value AS sku, node.title, price, uom, so.allocated, so.status
+				FROM purchase_input AS so
+				JOIN users ON users.uid = so.uid
+				JOIN node ON node.nid = so.serviceid
+				LEFT JOIN field_data_field_service_subtype AS subtype ON subtype.entity_id = node.nid
+				JOIN field_data_field_service_sku AS sku ON sku.entity_id = node.nid where so.serviceid= '".$value."' GROUP BY node.nid";
+				$db_getproduct = db_query($getprodsql);
+				foreach ($db_getproduct as $currproducts)
+				{
+					  $str .= '<tr><td valign="top" nowrap="nowrap"><b>'.$currproducts->qty.'-'.$currproducts->uom.'</b></td>';
+					  $str .= '<td width="98%"><b>'.$currproducts->title.'-'.$currproducts->price * $currproducts->qty.'</b>'.$currproducts->price.'<br />';
+					  $str .= 'SKU: '.$currproducts->sku.'<br />';
+					  $str .= $currproducts->title.'--'.$currproducts->stype.'</td> </tr>';
+                         	}
+                          }
+                       $str .=  '</table>
+
+                      </td>
+                    </tr>
+                  </table>
+
+                </td>
+              </tr>
+              
+              </table>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>';
+
+return $str;
+    
+}
+
+
+class input_allocationMailSystem implements MailSystemInterface {
+ 
+  public function format(array $message) {
+    $message['body'] = implode("\n\n", $message['body']);
+    return $message;
+  }
+
+  
+  public function mail(array $message) {
+    $mimeheaders = array();
+    foreach ($message['headers'] as $name => $value) {
+      $mimeheaders[] = $name . ': ' . mime_header_encode($value);
+    }
+    $line_endings = variable_get('mail_line_endings', MAIL_LINE_ENDINGS);
+    return mail(
+      $message['to'],
+      mime_header_encode($message['subject']),
+      // Note: e-mail uses CRLF for line-endings. PHP's API requires LF
+      // on Unix and CRLF on Windows. Drupal automatically guesses the
+      // line-ending format appropriate for your system. If you need to
+      // override this, adjust $conf['mail_line_endings'] in settings.php.
+      preg_replace('@\r?\n@', $line_endings, $message['body']),
+      // For headers, PHP's API suggests that we use CRLF normally,
+      // but some MTAs incorrectly replace LF with CRLF. See #234403.
+      join("\n", $mimeheaders)
+    );
+  }
+}
+
+function service_providers_allocations_form($form, $form_state)
+{
+	$form['#prefix'] = '<div class="input_allocation">';
+  $form['#frontallocation']['css'] = array(
+    drupal_get_path('module', 'input_allocation') . '/input_allocation.css',
+  );
+  
+  $sql =
+"SELECT  input_allocation.input_allocation_id, node.nid, input_allocation.serviceid, field_service_sku_value AS sku, node.title, field_service_subtype_value AS subtype, input_allocation.supplierid, SUM(input_allocation.qty) as qty, input_allocation.price, input_allocation.uom, input_allocation.published, input_allocation.supplied, input_allocation.paid, input_allocation.creator, input_allocation.date_added FROM input_allocation JOIN node ON input_allocation.serviceid = node.nid LEFT JOIN field_data_field_service_subtype AS subtype ON subtype.entity_id = node.nid JOIN field_data_field_service_sku as ssku ON ssku.entity_id = input_allocation.serviceid WHERE input_allocation.published =1 GROUP BY input_allocation.serviceid";
+		$db_result = db_query($sql);
+		
+		$rows = array();
+		 $header = array();
+		 $header[] = 'Product';
+		 $header[] = 'Description';
+		 $header[] = 'Subtype';
+		 $header[] = 'Quantity';
+		 $header[] = 'UOM';
+		 $header[] = 'Unit Price';
+		// $header[] = 'Total';
+		// $header[] = 'Operations';
+		
+		$row = array();
+  
+  foreach ($db_result as $record) {
+  
+    $row[$record->nid] =array(
+      //array('data' => l($record->name, 'user/'.$record->uid)),
+      array('data' => t($record->title.'--'.$record->sku)),
+      array('data' => l($record->title, 'node/'.$record->nid)),
+      array('data' => t($record->subtype)), 
+      array('data' => t($record->qty)),
+      array('data' => t($record->uom)),
+      //array('data' => t($allocatedstatus )) ,//t($record->allocated)),
+     // array('data' => t($supplied )),
+      array('data' => t($record->price)),
+      //array('data' => t($record->total)),
+      
+    );
+  }
+  
+  $form['frontallocation'] = array(
+	'#type' => 'fieldset', 
+    	'#title' => t('<h4>These Products are Unallocated, Select the ones you can supply</h4>'), 
+	'#collapsible' => TRUE,
+  );
+  		
+  		
+  $form['frontallocation']['table'] = array(
+    '#type' => 'tableselect',
+    '#header' => $header,
+    '#options' => $row,
+    '#empty' => t('No allocation found'),
+  );
+ 
+  
+  
+  $form['frontallocation']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Supply'),
+  );
+  $form['#suffix'] = '</div>';
+  return $form;
+}
+
+
+
+function service_providers_allocations_prod_form()
+{
+$form['#prefix'] = '<div class="input_allocation">';
+  $form['#allocations']['css'] = array(
+    drupal_get_path('module', 'input_allocation') . '/input_allocation.css',
+  );	  
+  $sql =
+"SELECT  input_allocation.input_allocation_id, node.nid, input_allocation.serviceid, field_service_sku_value AS sku, node.title, field_service_subtype_value AS subtype, input_allocation.supplierid, SUM(input_allocation.qty) as qty, input_allocation.price, input_allocation.uom, input_allocation.published, input_allocation.supplied, input_allocation.paid, input_allocation.creator, input_allocation.date_added FROM input_allocation JOIN node ON input_allocation.serviceid = node.nid LEFT JOIN field_data_field_service_subtype AS subtype ON subtype.entity_id = node.nid JOIN field_data_field_service_sku as ssku ON ssku.entity_id = input_allocation.serviceid WHERE input_allocation.supplierid = '".arg(1)."' GROUP BY input_allocation.serviceid";
+		$db_result = db_query($sql);
+		
+		$rows = array();
+		 $header = array();
+		 $header[] = 'Product';
+		 $header[] = 'Description';
+		 $header[] = 'Subtype';
+		 $header[] = 'Quantity';
+		 $header[] = 'UOM';
+		 $header[] = 'Unit Price';
+		// $header[] = 'Total';
+		// $header[] = 'Operations';
+		
+		$row = array();
+  
+  foreach ($db_result as $record) {
+  
+    $row[$record->nid] =array(
+      //array('data' => l($record->name, 'user/'.$record->uid)),
+      array('data' => t($record->title.'--'.$record->sku)),
+      array('data' => l($record->title, 'node/'.$record->nid)),
+      array('data' => t($record->subtype)), 
+      array('data' => t($record->qty)),
+      array('data' => t($record->uom)),
+      //array('data' => t($allocatedstatus )) ,//t($record->allocated)),
+     // array('data' => t($supplied )),
+      array('data' => t($record->price)),
+      //array('data' => t($record->total)),
+      
+    );
+  }
+  
+  $form['allocations'] = array(
+	'#type' => 'fieldset', 
+    	'#title' => t('<h4>Allocated Products</h4>'), 
+	'#collapsible' => TRUE,
+  );
+  		
+  		
+  $form['allocations']['table'] = array(
+    '#type' => 'tableselect',
+    '#header' => $header,
+    '#options' => $row,
+    '#empty' => t('No allocation found'),
+  );
+  
+   $actionstodo['selectaction'] = 'Select an action';
+   $actionstodo['publish'] = 'Remove from my Allocations';
+  $actionstodo['allocate'] = 'Mark as Supplied';
+  $form ['allocations']['actionstodo'] = array(
+         '#type' => 'select',
+         '#title' => t('With Selected'),
+         '#options' => $actionstodo,
+         '#cols' => 10,
+		 '#multiple' => FALSE,
+	);
+	
+	$form['allocations']['submit'] = array(
+    '#type' => 'submit',
+    '#cols' => 10,
+    '#value' => t('Save'),
+  );
+  $form['#suffix'] = '</div>';
+	
+  return $form;
+ 
+}
+ function service_providers_allocations_prod_form_validate($form, &$form_state)
+  {
+	if($form_state['values']['actionstodo'] == 'selectaction'|| empty($form_state['values']['product']))
+	 {
+		form_set_error('actionstodo', t("Please select an action to perform"));
+	 }
+  }
+ // function service_providers_allocations_prod_form_submit($form, &$form_state)
+ function service_providers_allocations_form_submit($form, &$form_state)
+  {
+	
+		$resultsarray = $form_state['values']['table'];
+		global $user;
+		$products = array();
+		$individualproduct = array();
+		foreach($resultsarray as $key => $value) 
+		{
+	    if ($resultsarray[$key] !=0)
+	    {
+			$sqlgetproduct = "SELECT  input_allocation.input_allocation_id, node.nid, input_allocation.serviceid, field_service_sku_value AS sku, node.title, field_service_subtype_value AS subtype, input_allocation.supplierid, SUM(input_allocation.qty) as qty, input_allocation.price, input_allocation.uom, input_allocation.published, input_allocation.supplied, input_allocation.paid, input_allocation.creator, input_allocation.date_added FROM input_allocation JOIN node ON input_allocation.serviceid = node.nid LEFT JOIN field_data_field_service_subtype AS subtype ON subtype.entity_id = node.nid JOIN field_data_field_service_sku as ssku ON ssku.entity_id = input_allocation.serviceid WHERE node.nid = '".$resultsarray[$value]."' and input_allocation.published =1 GROUP BY input_allocation.serviceid";
+			
+				
+			$db_sqlgetproduct = db_query($sqlgetproduct);
+			foreach ($db_sqlgetproduct as $db_record)
+			{
+				
+				$qty = $db_record->qty;
+				$price = $db_record->price;
+				$uom = $db_record->uom;
+				$title = $db_record->title;
+				$sku = $db_record->sku;
+				
+			}
+			
+			//$sqlinsert = "INSERT INTO input_allocation (serviceid, qty, price, uom, supplierid, creator, date_added) VALUES ('".$resultsarray[$key]."','".$qty."', '".$price."', '".$uom."','".$user->uid."','".$user->uid."','".date('Y-m-d H:i:s')."')";
+			$sqlinsert = "UPDATE input_allocation SET supplierid = '".$user->uid."', published = '0', creator ='".$user->uid."' WHERE serviceid ='".$resultsarray[$key]."'";
+			$db_insertres = db_query($sqlinsert);
+			//$sq_update = "UPDATE purchase_input SET allocated = 1 WHERE serviceid = ".$resultsarray[$key];
+			//$db_insertres = db_query($sq_update);
+			$products[] = $resultsarray[$key];
+		}
+		
+		
+	
+			
+	}
+	
+				//send notifications
+				$supplierquery="SELECT users.uid as uid, users.name as name, sms_user.number, mail FROM users JOIN users_roles ON users.uid = users_roles.uid LEFT OUTER JOIN sms_user on users.uid = sms_user.uid WHERE  `rid` =5 AND users.uid = '".$user->uid."'";
+			  	$db_result = db_query($supplierquery);
+				foreach ($db_result as $record)
+				{
+					$suppliers[$record->uid] = $record->name;
+					$emailto =  $record->mail;
+					$params = array('msg' => send_an_email ($record->name, $products));
+					if ($record->mail != '')
+					{
+						sms_send($record->number, 'An Order has been raised on '.variable_get('uc_store_name', '').'. Please visit '.$GLOBALS['base_url'].'/user/'.$record->uid.' to get more details');
+						drupal_mail('input_allocation', 'invitation', $emailto, language_default(), $params);
+					}
+				}
+				
+				//NOTIFY ALL GRP ADMINS
+				$adminquery="SELECT 
+								og_users_roles.uid, og_users_roles.rid, og_users_roles.gid,
+								users.name, users.mail,
+								sms_user.number as phone, 
+								node.title as groupName
+								FROM  og_users_roles JOIN users on  og_users_roles.uid = users.uid
+								LEFT OUTER JOIN sms_user ON sms_user.uid = users.uid LEFT OUTER JOIN node ON node.nid = og_users_roles.gid";
+			  	$db_result = db_query($adminquery);
+				foreach ($db_result as $record)
+				{
+					$suppliers[$record->uid] = $record->name;
+					$emailto =  $record->mail;
+					$params = array('msg' => send_admin_email ($record->uid, $products));
+					if ($record->mail != '')
+					{
+						sms_send($record->phone, 'Your Group\'s Order has been picked on '.variable_get('uc_store_name', '').'. Please visit '.$GLOBALS['base_url'].'/ to get more details');
+						drupal_mail('input_allocation', 'invitation', $emailto, language_default(), $params);
+					}
+				}
+				drupal_set_message(t('Your Allocation has been saved'));
+  }

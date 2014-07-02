@@ -1,0 +1,78 @@
+<?php 
+
+function user_products_schema(){
+	// user_products table schema
+  $schema['user_products'] = array(
+    'description' => 'User Products Table',
+    'fields' => array(
+      'user_product_id'             => array( //Primary key
+        'description'       => 'Primary Key: User-Product Id',
+        'type'              => 'serial',
+        'unsigned'			=> TRUE,
+        'not null'          => TRUE,
+        ),
+      'productid'           => array(
+        'description'       => 'Product ID',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'userid'           => array(
+        'description'       => 'User ID Owner',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'quantity'           => array(
+        'description'       => 'Quantity',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'unit'           => array(
+        'description'       => 'unit',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	    'kg'           => array(
+        'description'       => 'KG',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	    'price'           => array(
+        'description'       => 'price of product ',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'inspected'           => array(
+        'description'       => '1 for yes 0 for no',
+        'type'              => 'int',
+        'size'              => 'big',
+        'default'              => '0',
+        'not null'          => FALSE,
+      ),
+	  'archived'           => array(
+        'description'       => '1 for yes or 0 for no',
+        'type'              => 'int',
+        'size'              => 'big',
+        'default'              => '0',
+        'not null'          => FALSE,
+      ),
+     'date_added'              => array(
+        'description'           => 'Date Added',
+        'type'                  => 'datetime',
+        'mysql_type'            => 'DATETIME',
+        'not null'              => FALSE,
+      )
+    ),
+    'primary key' => array('user_product_id'),
+    'indexes'       =>  array(
+                          'productid' => array('productid'), 
+						  'userid' => array('userid')
+                        ),
+    );  
+  return $schema;
+}

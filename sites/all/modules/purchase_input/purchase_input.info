@@ -1,0 +1,10 @@
+name = Purchase Inputs
+description = Allows farmes to order farm inputs.
+package = Sokopepe - intelligent Technologies Ltd
+core = 7.x
+
+files[] = purchase_input.module
+
+
+stylesheets[all][] = purchase_input.css
+

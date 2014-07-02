@@ -1,0 +1,576 @@
+<?php
+
+/**
+ * @file
+ * Provide API for managing and converting units of measurement.
+ */
+
+/**
+ * Default convert callback between different unit measures.
+ *
+ * The default convert callback does convertion based on 'factor' parameter
+ * of the untis between which convertion happens.
+ */
+define('UNITS_DEFAULT_CONVERT_CALLBACK', 'units_convert');
+
+/**
+ * Implements hook_entity_info().
+ */
+function units_entity_info() {
+  $entity_info = array();
+
+  $entity_info['units_unit'] = array(
+    'label' => t('Unit measurement'),
+    'entity class' => 'UnitsUnitEntity',
+    'controller class' => 'EntityAPIController',
+    'base table' => 'units_unit',
+    'fieldable' => FALSE,
+    'entity keys' => array(
+      'id' => 'umid',
+      'bundle' => 'measure',
+      'label' => 'label',
+    ),
+    'bundles' => array(),
+    'bundle keys' => array(
+      'bundle' => 'measure',
+    ),
+    'module' => 'units',
+    'access callback' => 'units_entity_access',
+  );
+
+  // We can't use here entity_load functions, nor EntityFieldQuery because
+  // entity info is not exposed to core yet.
+  $measures = db_select('units_measure', 'u_m')
+      ->fields('u_m', array('measure', 'label'))
+      ->execute()
+      ->fetchAllAssoc('measure');
+  foreach ($measures as $measure) {
+    $entity_info['units_unit']['bundles'][$measure->measure] = array(
+      'label' => $measure->label,
+    );
+  }
+
+  $entity_info['units_measure'] = array(
+    'label' => t('Measure'),
+    'entity class' => 'UnitsMeasureEntity',
+    'controller class' => 'EntityAPIControllerExportable',
+    'base table' => 'units_measure',
+    'fieldable' => FALSE,
+    'bundle of' => 'units_unit',
+    'entity keys' => array(
+      'id' => 'mid',
+      'label' => 'label',
+    ),
+    'module' => 'units',
+    'access callback' => 'units_entity_access',
+  );
+
+  return $entity_info;
+}
+
+/**
+ * Import data collected from units_info() into database as entities.
+ *
+ * Import units defined in other modules and collected in units_info() into
+ * database as entities 'units_measure' and 'units_unit'. Supposedly the
+ * original data might have been overriden via units_ui module. This function
+ * allows to reset data back to "factory presets". If the parameters are
+ * supplied, function will import only the specified entity. Entity is specified
+ * by type (either 'units_measure' or 'units_unit') and its machine name.
+ *
+ * @param string $entity_type
+ *   Provide only if you want to import a specific entity instead of
+ *   all available entities. Put entity type that should be imported. Either:
+ *     untis_measure - importing Units Measure
+ *     units_unit - importing Unit
+ * @param string $machine_name
+ *   Machine name (a corresponding key from return of units_info()) of the
+ *   entity that should be imported.
+ *   For $entity_type = units_measure, it should be $units_info[HERE]
+ *   For $entity_type = units_unit - $units_info[$measure]['units'][HERE]
+ * @param string $measure
+ *   If the imported entity type is untis_unit, provide here machine name of
+ *   its units_measure to specify exclusively what units_unit you want to
+ *   reimport
+ *
+ * @return bool
+ *   Whether the import has been successful
+ */
+function units_reimport($entity_type = NULL, $machine_name = NULL, $measure = NULL) {
+  $units_info = units_info();
+
+  $return = TRUE;
+
+  if (is_null($entity_type)) {
+    // General case, when we import everything supplied by other modules. Here
+    // we call this function recusrively though now providing specific
+    // parameters about what entity to import.
+    foreach ($units_info as $measure_machine_name => $measure_info) {
+      $return = $return && units_reimport('units_measure', $measure_machine_name);
+      foreach ($measure_info['units'] as $unit_machine_name => $unit) {
+        $return = $return && units_reimport('units_unit', $unit_machine_name, $measure_machine_name);
+      }
+    }
+  }
+  else {
+    if (is_null($machine_name)) {
+      // If importing a specific entity, machine name of that entity is
+      // required.
+      return FALSE;
+    }
+    if ($entity_type == 'units_unit' && is_null($measure)) {
+      // Measure is required when importing units_unit, to make sure the unit
+      // is specified precisely.
+      return FALSE;
+    }
+
+    switch ($entity_type) {
+      case 'units_measure':
+        $query = new EntityFieldQuery();
+        $result = $query->entityCondition('entity_type', $entity_type)
+            ->propertyCondition('measure', $machine_name)
+            ->execute();
+
+        $values = $units_info[$machine_name];
+        if (empty($result)) {
+          // No such entity has been created in DB yet. So we create one.
+          $entity = entity_create($entity_type, array(
+            'measure' => $machine_name,
+          ));
+        }
+        else {
+          // Such an entity already exists in DB. We load it.
+          $entity_id = array_pop(array_keys($result[$entity_type]));
+          $entity = entity_load($entity_type, array($entity_id));
+          $entity = $entity[$entity_id];
+        }
+        break;
+
+      case 'units_unit':
+        $query = new EntityFieldQuery();
+        $result = $query->entityCondition('entity_type', $entity_type)
+            ->entityCondition('bundle', $measure)
+            ->propertyCondition('machine_name', $machine_name)
+            ->execute();
+
+        $values = $units_info[$measure]['units'][$machine_name];
+        if (empty($result)) {
+          // No such entity has been created in DB yet. So we create one.
+          $entity = entity_create('units_unit', array(
+            'measure' => $measure,
+            'machine_name' => $machine_name,
+          ));
+        }
+        else {
+          // Such an entity already exists in DB. We load it.
+          $entity_id = array_pop(array_keys($result[$entity_type]));
+          $entity = entity_load($entity_type, array($entity_id));
+          $entity = $entity[$entity_id];
+        }
+        break;
+    }
+
+    // Converting untis_info() output into entity format. We find
+    // intersection between properties defined in units_info() and columns
+    // of base table of our entity.
+    $entity_info = $entity->entityInfo();
+    $schema = drupal_get_schema($entity_info['base table']);
+    foreach (array_intersect(array_keys($values), array_keys($schema['fields'])) as $k) {
+      $entity->{$k} = $values[$k];
+    }
+
+    entity_save($entity_type, $entity);
+  }
+
+  return $return;
+}
+
+/**
+ * Collect info about available units and possible conversions between them.
+ *
+ * @param bool $reset
+ *   Whether to reset internal cache
+ *
+ * @return array
+ *   Array of units and measures
+ */
+function units_info($reset = FALSE) {
+  $cache = &drupal_static(__FUNCTION__);
+
+  if (!is_array($cache) || $reset) {
+    // Trying Drupal DB cache layer.
+    $cid = 'units_info';
+    $cache = cache_get($cid);
+    if (!isset($cache->data) || $reset) {
+      // Collecting all the info from modules.
+      $cache = units_info_module_invoke_all();
+      // Post formatting the results adding some useful information.
+      foreach ($cache as $measure => $measure_info) {
+        if (!isset($measure_info['convert_callback'])) {
+          // If no convert callback is defined, we initialize it with an empty
+          // string.
+          $cache[$measure]['convert_callback'] = '';
+        }
+        foreach ($measure_info['units'] as $unit => $unit_info) {
+          if (!isset($unit_info['factor'])) {
+            // By default factor is 1.
+            $cache[$measure]['units'][$unit]['factor'] = 1;
+          }
+        }
+      }
+
+      drupal_alter('units', $cache);
+
+      // Storing in DB cache.
+      cache_set($cid, $cache, 'cache', CACHE_TEMPORARY);
+    }
+    else {
+      $cache = $cache->data;
+    }
+  }
+
+  return $cache;
+}
+
+/**
+ * Convert value measured in one unit into value measured in another unit.
+ *
+ * @param float $value
+ *   Value to be converted
+ * @param string $from
+ *   Machine name of source units measure
+ * @param string $to
+ *   Machine name of destination units measure
+ * @param string $measure
+ *   Optional. Measure of value to be converted, normally the measure is looked
+ *   up using the provided $form and $to, but in case the same unit measure is
+ *   used in different measures, this parameter may narrow down unit measures
+ *   to the necessary scope.
+ *
+ * @return float
+ *   Value, converted from $from units into $to units
+ */
+function units_convert($value, $from, $to, $measure = NULL) {
+  if ($from == $to) {
+    // That's an easy one. Value converting from a unit into the same unit
+    // always will be the same value.
+    return $value;
+  }
+
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', 'units_unit')
+    ->propertyCondition('machine_name', array($from, $to));
+  if (!is_null($measure)) {
+    $query->entityCondition('bundle', $measure);
+  }
+  $result = $query->execute();
+  if (!isset($result['units_unit']) || count($result['units_unit']) != 2) {
+    // Probably wrong $from and/or $to were supplied, otherwise we would have
+    // got exactly 2 results.
+    return FALSE;
+  }
+
+  // Loading entities.
+  $entities = entity_load('units_unit', array_keys($result['units_unit']));
+  foreach ($entities as $entity) {
+    switch ($entity->machine_name) {
+      case $from:
+        $from = $entity;
+        break;
+
+      case $to:
+        $to = $entity;
+        break;
+    }
+  }
+
+  if ($from->measure != $to->measure) {
+    // The found units are from different measures. That's not Okay.
+    return FALSE;
+  }
+
+  // Loading measure.
+  $measure = units_measure_machine_name_load(field_extract_bundle('units_unit', $from));
+
+  if (isset($measure->convert_callback) && $measure->convert_callback != UNITS_DEFAULT_CONVERT_CALLBACK && function_exists($measure->convert_callback)) {
+    // This measure has it own convert callback. So we delegate actual
+    // convertion down to that callback function.
+    $callback = $measure->convert_callback;
+    $converted = $callback($value, $from, $to);
+  }
+  else {
+    $si_value = $value * $from->factor;
+    $converted = $si_value / $to->factor;
+  }
+  return $converted;
+}
+
+/**
+ * Access callback for entity types 'units_measure' and 'units_unit'.
+ *
+ * @param string $op
+ *   The operation being performed. One of 'view', 'update', 'create' or
+ *   'delete'
+ * @param object $entity
+ *   Entity object on which the operation is requested to be performed
+ * @param object $account
+ *   Fully loaded user object of the account who requests to perform the
+ *   operation
+ * @param string $entity_type
+ *   Entity type on which the operation is requested to be performed
+ *
+ * @return bool
+ *   Whether access has been granted
+ */
+function units_entity_access($op, $entity, $account, $entity_type) {
+  // There is no reason why we would limit access to 'units_measure' or
+  // 'units_unit' entities.
+  return TRUE;
+}
+
+/**
+ * Load an entity of entity type 'units_unit' by its ID.
+ */
+function units_unit_load($umid, $reset = FALSE) {
+  $units = units_unit_load_multiple(array($umid), array(), $reset);
+  return reset($units);
+}
+
+/**
+ * Load multiple entities of entity type 'units_unit'.
+ */
+function units_unit_load_multiple($umids = FALSE, $conditions = array(), $reset = FALSE) {
+  return entity_load('units_unit', $umids, $conditions, $reset);
+}
+
+/**
+ * Load a single entity of type 'units_unit' loading by its machine name.
+ *
+ * @param string $machine_name
+ *   Machine name of entity to load
+ *
+ * @return object|bool
+ *   Return fully loaded entity object if it was found, otherwise FALSE
+ */
+function units_unit_machine_name_load($machine_name) {
+  $query = new EntityFieldQuery();
+  $result = $query->entityCondition('entity_type', 'units_unit')
+      ->propertyCondition('machine_name', $machine_name)
+      ->execute();
+  if (isset($result['units_unit'])) {
+    $entity = array_pop($result['units_unit']);
+    return units_unit_load($entity->umid);
+  }
+
+  // No entity was found.
+  return FALSE;
+}
+
+/**
+ * Save an entity of type 'units_unit'.
+ */
+function units_unit_save($entity) {
+  entity_save('units_unit', $entity);
+}
+
+/**
+ * Delete a single entity of type 'units_unit'.
+ */
+function units_unit_delete($entity) {
+  entity_delete('units_unit', entity_id('units_unit', $entity));
+}
+
+/**
+ * Delete multiple entities of type 'units_unit'.
+ *
+ * @param array $umids
+ *   Array of entity ids to be deleted
+ */
+function units_unit_delete_multiple($umids) {
+  entity_delete_multiple('units_unit', $umids);
+}
+
+/**
+ * Load an entity of entity type 'units_measure' by its ID.
+ */
+function units_measure_load($mid, $reset = FALSE) {
+  $measures = units_measure_load_multiple(array($mid), array(), $reset);
+  return reset($measures);
+}
+
+/**
+ * Load multiple entities of entity type 'units_unit'.
+ */
+function units_measure_load_multiple($mids = array(), $conditions = array(), $reset = FALSE) {
+  return entity_load('units_measure', $mids, $conditions, $reset);
+}
+
+/**
+ * Load a single entity of type 'units_measure' loading by its machine name.
+ *
+ * @param string $machine_name
+ *   Machine name of entity to load
+ *
+ * @return object|bool
+ *   Return fully loaded entity object if it was found, otherwise FALSE
+ */
+function units_measure_machine_name_load($machine_name) {
+  $query = new EntityFieldQuery();
+  $result = $query->entityCondition('entity_type', 'units_measure')
+      ->propertyCondition('measure', $machine_name)
+      ->execute();
+  if (isset($result['units_measure'])) {
+    $entity = array_pop($result['units_measure']);
+    return units_measure_load($entity->mid);
+  }
+
+  // No entity was found.
+  return FALSE;
+}
+
+/**
+ * Save an entity of type 'units_measure'.
+ */
+function units_measure_save($entity) {
+  entity_save('units_measure', $entity);
+}
+
+/**
+ * Delete a single entity of type 'units_unit'.
+ */
+function units_measure_delete($entity) {
+  entity_delete('units_measure', entity_id('units_measure', $entity));
+}
+
+/**
+ * Delete multiple entities of type 'units_unit'.
+ *
+ * @param array $mids
+ *   Array of entity ids to be deleted
+ */
+function units_measure_delete_multiple($mids) {
+  entity_delete_multiple('units_measure', $mids);
+}
+
+/**
+ * Supportive function.
+ *
+ * Invoke hook_units_info() on all modules. We cannot use Drupal standard
+ * module_invoke_all() because we have to throw in what unit was defined by what
+ * module.
+ */
+function units_info_module_invoke_all() {
+  $return = array();
+  foreach (module_implements('units_info') as $module) {
+    $tmp = module_invoke($module, 'units_info');
+    if (is_array($tmp)) {
+      foreach ($tmp as $measure => $measure_info) {
+        // Adding what module defined this measure.
+        $tmp[$measure]['module'] = $module;
+        foreach ($measure_info['units'] as $unit => $unit_info) {
+          // Adding what module defined this unit.
+          $tmp[$measure]['units'][$unit]['module'] = $module;
+        }
+      }
+      $return = array_merge_recursive($return, $tmp);
+    }
+  }
+  return $return;
+}
+
+/**
+ * Implements hook_units_info().
+ *
+ * This hook implementation imports units and measures defined in unitsapi
+ * module (if one is enabled) and converts them into the format expected by
+ * units module, this is kind of a bridge.
+ */
+function units_units_info() {
+  $return = array();
+
+  if (module_exists('unitsapi') && function_exists('unitsapi_get_units')) {
+    $unitsapi = unitsapi_get_units();
+    // Now converting collected data in the format expected by units module.
+    foreach ($unitsapi as $unit) {
+      if (!isset($return[$unit['kind']])) {
+        $return[$unit['kind']] = array(
+          'label' => $unit['kind'],
+          'units' => array(),
+        );
+      }
+
+      if (isset($unit['factor']['default'])) {
+        $return[$unit['kind']]['units'][$unit['singular']] = array(
+          'label' => $unit['singular'],
+          'factor' => $unit['factor']['default'],
+        );
+      }
+    }
+
+    // Temperature measure is not supported because units module default convert
+    // callback won't be able to parse 'factor' for those units.
+    unset($return['temperature']);
+  }
+
+  return $return;
+  /*
+  return array(
+    'length' => array(
+      'label' => 'Length',
+      'description' => 'bla bla bla',
+      'units' => array(
+        'meter' => array(
+          'label' => 'Meter',
+          'factor' => 1,
+          'description' => 'Meter',
+        ),
+        'centimeter' => array(
+          'label' => 'Centimeter',
+          'factor' => 0.01,
+          'description' => 'Centimeter',
+        ),
+      ),
+    ),
+    'dummy' => array(
+      'label' => 'Dummy Length',
+      'description' => 'There is a russian movie where a curious parrot asks himself how long is udaf, measuring in parrots. According to him, one udaf is 38 parrots long.',
+      'units' => array(
+        'parrot' => array(
+          'label' => 'Parrot',
+          'factor' => 1,
+          'description' => 'A parrot unit',
+        ),
+        'udaf' => array(
+          'label' => 'Udaf',
+          'factor' => 38,
+          'description' => 'An udaf unit',
+        ),
+      ),
+    ),
+    'random' => array(
+      'label' => 'Random Converter',
+      'description' => 'A test group of units. Do not try to find out dependency in factors between units of this group. The result of a conversion in this group is always a random number.',
+      'units' => array(
+        'a' => array(
+          'label' => 'Unit Measure 1',
+          'description' => 'Unit #1',
+        ),
+        'b' => array(
+          'label' => 'Unit Measure 2',
+          'description' => 'Unit #2',
+        ),
+      ),
+      'convert_callback' => 'units_convert_random',
+    ),
+  );
+  */
+}
+
+/**
+ * Dummy convert callback.
+ */
+/*
+function units_convert_random() {
+  return rand();
+}
+*/

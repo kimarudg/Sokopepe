@@ -1,0 +1,25 @@
+<?php
+
+/**
+ * @file
+ * Install, update, and uninstall functions for the Measured Value Field module.
+ */
+
+/**
+ * Implements hook_field_schema().
+ */
+function mvf_field_schema($field) {
+  module_load_include('module', 'mvf');
+  module_load_install(MVF_MODULE_UNIT);
+  module_load_install(MVF_MODULE_VALUE);
+
+  $schema = array();
+  // Delegating field schema generation down to subfields and merging the output
+  // into a single return array.
+  foreach (array('value', 'unit') as $subfield) {
+    $mocked_filed = mvf_field_mockup($field, $subfield);
+    $schema = array_merge_recursive($schema, module_invoke($mocked_filed['module'], 'field_schema', $mocked_filed));
+  }
+
+  return $schema;
+}

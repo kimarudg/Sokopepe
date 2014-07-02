@@ -1,0 +1,231 @@
+<?php
+function user_products_menu(){
+$items = array();
+ $items['user/%user/myproducts']  = array(
+'title' => t('My products'),
+'page callback' => 'user_products_page',
+ 'access arguments' => array('access content'),
+'type' => MENU_LOCAL_TASK, //rendered as tab
+//'type' => MENU_CALLBACK, // rendered as page
+ );
+ 
+ 
+ $items['userproductsdelete']  = array(
+'title' => t('My products'),
+'page callback' => 'user_products_delete_page',
+ 'access arguments' => array('access content'),
+'type' => MENU_CALLBACK, //rendered as tab
+//'type' => MENU_CALLBACK, // rendered as page
+ );
+ 
+return $items;
+}
+
+function user_products_page() {
+   // in this function, we shall select all products in the uc_products table, 
+   //and the user will be presented with these products.
+   //Basically, users will just select the products and specify the quantity.
+	
+	
+	$content = drupal_get_form('user_products_form');
+	//$form = drupal_get_form('order_allocation_form');
+    //$content = order_allocation_form('order_allocation_form');
+    return $content;
+}
+
+function user_products_form($form, &$form_state) {
+ 
+  $form['#prefix'] = '<div class="user_products">';
+ $form['#user_products']['css'] = array(
+    drupal_get_path('module', 'user_products') . '/user_products.css',
+  ); 
+ //get the products for the selected order
+ $list=array();
+  $query="SELECT * FROM uc_products";
+	$db_result = db_query($query);
+	foreach ($db_result as $record) 
+	{
+		$list[$record->nid] = gettitle($record->nid);
+				
+	}
+	
+	$form['user_products'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t('Add a product for sale'), 
+	'#collapsible' => TRUE,
+  );
+//create a select list of products in the order
+  $form['user_products']['product'] = array(
+ '#type' => 'select',
+ '#title' => t('Product'),
+ '#options' => $list,
+ '#cols' => 15,
+  '#multiple' => FALSE,
+ );
+  
+ //create quantity text
+ //create a text field called quantity with label quantity to supply
+ $form ['user_products']['quantity'] = array(
+ '#type' => 'textfield',
+ '#title' => t('Quantity'),
+ '#size' => 10, 
+ );
+ 
+ $unit=array();
+  $query="SELECT  umid, label FROM  units_unit  WHERE  measure =  'sokopepe_measures' AND  factor !=1 ";
+	$db_result = db_query($query);
+	foreach ($db_result as $record) 
+	{
+		//$uom[$record->umid] = gettitle($record->label);
+		$unit[$record->umid] = $record->label;		
+	}
+  $form['user_products']['unit'] = array(
+ '#type' => 'select',
+ '#title' => t('Unit'),
+ '#options' => $unit,
+ '#cols' => 10,
+ 
+ );
+ 
+  $form['user_products']['kg'] = array(
+ '#type' => 'textfield',
+ '#title' => t('Kg'),
+ '#size' => 5, 
+ );
+   $form['user_products']['price'] = array(
+ '#type' => 'textfield',
+ '#title' => t('Price'),
+ '#size' => 10, 
+ );
+ 
+ 
+  //submit button 
+  $form['user_products']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+  );
+  
+  global $user;
+  
+  $form['dets'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('My Products Available for sale'),
+      '#description' => t(getmyproducts($user->uid)),
+	  '#collapsible' => TRUE,
+    );
+	
+	/**/
+   $form['#suffix'] = '</div>';
+  return $form;
+}
+
+function gettitle ($nid)
+{
+	$nid_sql = "SELECT * FROM node WHERE nid = $nid";
+	$res = db_query ($nid_sql);
+	foreach ($res as $record) 
+	{
+		$desired_title = $record->title;
+				
+	}
+	return $desired_title;
+}
+
+
+
+function getmyproducts($argument)
+{
+global $user;
+
+	$sql ="SELECT user_product_id, nid, title, quantity, price, unit, kg, label
+			FROM  `user_products` 
+			JOIN node ON nid =  `productid` 
+			JOIN units_unit ON umid =  `unit` 
+			WHERE userid =  $argument";
+		$db_result = db_query($sql);
+		
+		$rows = array();
+		 $header = array();
+		 $header[] = 'Product';
+		 $header[] = 'Quantity ';
+		 $header[] = 'Unit';
+		 $header[] = 'Kg';
+		 $header[] = 'Price';
+		 $header[] = 'Operations';
+		
+		$row = array();
+	foreach ($db_result as $record) 
+	{
+		 $row [] = array(
+			  // output 1 cell in 1 row   l($node->title, 'node/'. $node->nid .'/edit'),
+			  array('data' => l($record->title, 'node/'.$record->nid)), 
+			   // third cell
+			  array('data' => t($record->quantity)),
+			  array('data' => t($record->label)),
+			  array('data' => t($record->kg)),
+			  array('data' => t($record->price)), 
+			  // fifth cell  
+			  array('data' => l('Remove', 'userproductsdelete/'.$record->user_product_id)) 
+			); 
+		//$amountallocated = $record->qty;
+				
+	}
+	return theme('table', array('header' => $header, 'rows'=> $row));
+}
+
+function user_products_delete_page ($argument)
+{
+	global $user;
+	$sql = "DELETE FROM user_products WHERE user_product_id=$argument";
+	$db_result = db_query($sql);
+	drupal_goto('user/'.$user->uid.'/myproducts', array('external' => FALSE));
+}
+
+
+
+// VALIDATIONS
+
+function user_products_form_validate($form, &$form_state) {
+  //echo ($form_state['values']['quantity'] );
+  
+ if(!is_numeric($form_state['values']['product'])|| empty($form_state['values']['product']))
+ {
+	form_set_error('product', t("Select a Product"));
+ }
+ elseif(!is_numeric($form_state['values']['quantity']) || empty($form_state['values']['quantity']))
+ {
+	form_set_error('quantity', t("Please Enter a valid Quantity (HINT: Must be a number!)"));
+ }
+  elseif(!is_numeric($form_state['values']['price']) || empty($form_state['values']['price']))
+ {
+	form_set_error('price', t("Please Enter the product Price (HINT: Must be a number!)"));
+ }
+   elseif(!is_numeric($form_state['values']['kg']) || empty($form_state['values']['kg']))
+ {
+	form_set_error('kg', t("Please Enter the weight in KG (HINT: Must be a number!)"));
+ }
+}
+
+function user_products_form_submit($form, &$form_state) {
+	//CHECK IF THE PRODUCT EXISTS
+	global $user;
+	$sql_check = "Select count(*) as existingitems from user_products where productid = '".$form_state['values']['product']."'and userid='".$user->uid."'";
+	$db_check = db_query($sql_check);
+	foreach ($db_check as $db_record) 
+	{
+		$existingitems = $db_record->existingitems;
+				
+	}
+	if ($existingitems != 0)
+	{
+		$SQL = "UPDATE user_products set quantity = '".$form_state['values']['quantity']."' WHERE productid = '".$form_state['values']['product']."' AND  userid = '".$user->uid."'";
+	}
+	else
+	{
+		$SQL = "INSERT INTO user_products (productid, userid, quantity, price, unit, kg) VALUES ('".$form_state['values']['product']."', '".$user->uid."', '".$form_state['values']['quantity']."', '".$form_state['values']['price']."', '".$form_state['values']['unit']."', '".$form_state['values']['kg']."')";
+	}	
+	db_query($SQL);
+	drupal_set_message(t('Your product has been saved.'));
+	//drupal_set_message(t('Amount allocated so far is '.get_allocated_amount($form_state['values']['product'])));
+}
+ 

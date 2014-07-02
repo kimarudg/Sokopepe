@@ -1,0 +1,7 @@
+name = "Sokopepe Services"
+description = "A list of services available on Sokopepe"
+core = 7.x
+package = Sokopepe - intelligent Technologies Ltd
+
+
+

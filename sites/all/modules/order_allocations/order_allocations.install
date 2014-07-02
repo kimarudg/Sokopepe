@@ -1,0 +1,73 @@
+<?php 
+//create a database table to store the services provided by users
+
+function order_allocations_schema(){
+	// user_products table schema
+  $schema['order_allocation'] = array(
+    'description' => 'Sokopepe Order Allocation Table',
+    'fields' => array(
+      'order_allocation_id'             => array( //Primary key
+        'description'       => 'Primary Key: order_allocation_id',
+        'type'              => 'serial',
+        'not null'          => TRUE,
+        ),
+	 'productid'           => array(
+        'description'       => 'product ID',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+      'uid'           => array(
+        'description'       => 'User ID',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	   'qty'           => array(
+        'description'       => 'quantity',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'supplied'           => array(
+        'description'       => 'supplied',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	    'order_id'           => array(
+        'description'       => 'order ID',
+         'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+     
+      ),
+	   'price'           => array(
+        'description'       => 'price',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	    'uom'           => array(
+        'description'       => 'uom',
+         'type' 			=> 'varchar',
+        'length' 			=> 255,
+      ),
+     'date_added'              => array(
+        'description'           => 'Date Added',
+        'type'                  => 'datetime',
+        'mysql_type'            => 'datetime',
+        'not null'              => FALSE,
+      )
+    ),
+    'primary key' => array('order_allocation_id'),
+    'indexes'       =>  array(
+                          'productid' => array('productid'),
+						   'uid' => array('uid'),
+                        ),
+    );  
+  return $schema;
+}
+
+
+

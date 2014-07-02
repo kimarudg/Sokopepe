@@ -1,0 +1,10 @@
+name = Input Allocations
+description = Allows admin to combine inputs into one requisition and allocate the items to suppliers to create orders.
+package = Sokopepe - intelligent Technologies Ltd
+core = 7.x
+
+files[] = order_allocations.module
+
+
+stylesheets[all][] = input_allocation.css
+

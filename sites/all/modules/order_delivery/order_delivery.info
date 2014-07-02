@@ -1,0 +1,11 @@
+name = order_delivery
+description = View of products delivered by farmers.
+package = Sokopepe - intelligent Technologies Ltd
+core = 7.x
+
+files[] = order_delivery.module
+
+
+stylesheets[all][] = order_allocations.css
+
+

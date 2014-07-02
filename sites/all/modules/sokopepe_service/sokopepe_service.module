@@ -1,0 +1,225 @@
+<?php
+//Adds a tab to the user page 
+
+function sokopepe_service_menu(){
+$items = array();
+//path, title, page to call, permission and type of menu
+
+	 $items['user/%user/myservices']  = array(
+	'title' => t('My services'),
+	'page callback' => 'sokopepe_service_page',
+	 'access arguments' => array('access content'),
+	'type' => MENU_LOCAL_TASK, //rendered as tab
+	 );
+
+	 $items['sokopepe_service_delete']  = array(
+	'title' => t('My services'),
+	'page callback' => 'sokopepe_service_delete_page',
+	 'access arguments' => array('access content'),
+	'type' => MENU_CALLBACK, //rendered as tab
+	 );
+ 
+return $items;
+}
+
+function sokopepe_service_page() {
+   // This presents a list of services in the system, their costing methods to the service provider
+	
+	
+	$content = drupal_get_form('sokopepe_service_form');
+
+    return $content;
+}
+
+function sokopepe_service_form($form, &$form_state) {
+ global $user;
+ //get the products for the selected order
+ 
+  $list=array();
+  $query="SELECT DISTINCT * FROM  `node` WHERE TYPE =  'Service'";
+	$db_result = db_query($query);
+	foreach ($db_result as $record) 
+	{
+		$list[$record->nid] = get_node_title($record->nid);
+				
+	}
+//services list
+  $form['service'] = array(
+ '#type' => 'select',
+ '#title' => t('Service'),
+ '#options' => $list,
+ '#cols' => 10,
+ '#multiple' => FALSE,
+ );
+  
+  $cost=array();
+  $query2="SELECT DISTINCT * FROM  `node` WHERE TYPE =  'service_costing_method'";
+	$db_result2 = db_query($query2);
+	foreach ($db_result2 as $record2) 
+	{
+		$cost[$record2->nid] =  get_node_title($record2->nid);
+				
+	}
+//costing methods
+  $form['costlist'] = array(
+ '#type' => 'select',
+    '#title' => t('Select a costing method'),
+    '#required' => TRUE,
+    '#options' => $cost
+ );
+  
+    $location=array();
+  $query3="SELECT DISTINCT * FROM  `node` WHERE TYPE =  'location_region'";
+	$db_result3 = db_query($query3);
+	foreach ($db_result3 as $record3) 
+	{
+		$location[$record3->nid] =  get_node_title($record3->nid);
+				
+	}
+//Locations list
+  $form['location'] = array(
+ '#type' => 'select',
+    '#title' => t('Select the nearest location'),
+    '#required' => TRUE,
+    '#options' => $location
+ );
+  
+  
+  
+  
+  //price
+  $form['cost'] = array(
+ '#type' => 'textfield',
+ '#title' => t('Cost'),
+ );
+   //comment
+  $form['comment'] = array(
+ '#type' => 'textfield',
+ '#title' => t('Comment'),
+ );
+
+  
+  //submit button 
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Add to My Services'),
+  );
+      
+  $form['myservices'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('My Services'),
+      '#description' => t(get_my_services($user->uid)),
+    );  
+  return $form;
+}
+
+function get_node_title ($nid)
+{
+	$nid_sql = "SELECT * FROM node WHERE nid = $nid";
+	$res = db_query ($nid_sql);
+	foreach ($res as $record) 
+	{
+		$desired_title = $record->title;
+				
+	}
+	return $desired_title;
+}
+
+// Validate form inputs
+function sokopepe_service_form_validate($form, &$form_state) {
+  //echo ($form_state['values']['quantity'] );
+  
+ if(!is_numeric($form_state['values']['service'])|| empty($form_state['values']['service']))
+ {
+	form_set_error('service', t("Select a Service"));
+ }
+ elseif(!is_numeric($form_state['values']['costlist']) || empty($form_state['values']['costlist']))
+ {
+	 	form_set_error('costlist', t("Select a costing method"));
+ }
+  elseif(!is_numeric($form_state['values']['cost']) || empty($form_state['values']['cost']))
+ {
+	 	form_set_error('costlist', t("Enter the price/cost"));
+ }
+ 
+   elseif(!is_numeric($form_state['values']['location']) || empty($form_state['values']['location']))
+ {
+	 	form_set_error('location', t("Select the Nearest Region"));
+ }
+}
+
+function sokopepe_service_form_submit($form, &$form_state) {
+	//CHECK IF THE service exists
+	global $user;
+	
+	$sql_check = "Select count(*) as existingitems from sokopepe_service where serviceid = '".$form_state['values']['service']."'and userid='".$user->uid."' and costingid = '".$form_state['values']['costlist']."' and regionid = '".$form_state['values']['location']."' ";
+	
+	$db_check = db_query($sql_check);
+	foreach ($db_check as $db_record) 
+	{
+		$existingitems = $db_record->existingitems;
+				
+	}
+	if ($existingitems != 0)
+	{
+		$SQL = "UPDATE sokopepe_service set cost = '".$form_state['values']['cost']."',
+				comment = '".$form_state['values']['comment']."'
+		
+		 WHERE serviceid = '".$form_state['values']['service']."' AND  userid = '".$user->uid."'";
+	}
+	else
+	{
+		$SQL = "INSERT INTO sokopepe_service (serviceid, userid, costingid, cost, comment, regionid) VALUES ('".$form_state['values']['service']."', '".$user->uid."', '".$form_state['values']['costlist']."', '".$form_state['values']['cost']."',  '".$form_state['values']['comment']."', '".$form_state['values']['location']."'  )";
+	}	
+	db_query($SQL);
+	drupal_set_message(t('Your service has been saved.'));
+	//drupal_set_message(t('Amount allocated so far is '.get_allocated_amount($form_state['values']['product'])));
+}
+ 
+function get_my_services($argument)
+{
+global $user;
+
+	$sql ="SELECT sokopepe_user_service_id AS ssid, node.nid AS nid, node2.nid AS nid2, node3.nid AS nid3, node.title, node2.title AS rate, cost, ss.comment, node3.title AS region
+		FROM  `sokopepe_service` AS ss
+		JOIN node ON  `serviceid` = nid
+		JOIN node AS node2 ON  `costingid` = node2.nid
+		JOIN node AS node3 ON regionid = node3.nid
+	   WHERE ss.userid = $argument";
+		
+		$db_result = db_query($sql);
+		
+		$rows = array();
+		 $header = array();
+		 $header[] = 'Service';
+		 $header[] = 'Costing Method ';
+		 $header[] = 'Cost';
+		 $header[] = 'Comments';
+		 $header[] = 'Region';
+		 $header[] = 'Operations';
+		
+		$row = array();
+	foreach ($db_result as $record) 
+	{
+		 $row [] = array(
+			  // output 1 cell in 1 row   l($node->title, 'node/'. $node->nid .'/edit'),
+			   array('data' => l($record->title, 'node/'.$record->nid)), 
+			   array('data' => l($record->rate, 'node/'.$record->nid2)), 
+			   array('data' => t($record->cost)), 
+			   array('data' => t($record->comment)), 
+			   array('data' => l($record->region, 'node/'.$record->nid3)),
+			   array('data' => l('Remove', 'sokopepe_service_delete/'.$record->ssid)) 
+			); 
+		//$amountallocated = $record->qty;
+				
+	}
+	return theme('table', array('header' => $header, 'rows'=> $row));
+}
+
+function sokopepe_service_delete_page ($argument)
+{
+	global $user;
+	$sql = "DELETE FROM sokopepe_service WHERE sokopepe_user_service_id = $argument";
+	$db_result = db_query($sql);
+	drupal_goto('user/'.$user->uid.'/myservices', array('external' => FALSE));
+}

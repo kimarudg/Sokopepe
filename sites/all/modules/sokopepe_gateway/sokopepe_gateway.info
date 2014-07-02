@@ -1,0 +1,15 @@
+name = "Sokopepe SMS Gateway "
+description = "Gateway: Configurable module for quick & easy integration to sokopepe shortcode"
+package = Sokopepe - intelligent Technologies Ltd
+core = 7.x
+dependencies[] = sms
+
+files[] = sokopepe_gateway.module
+ 
+
+; Information added by drupal.org packaging script on 2011-10-09
+version = "7.x-1.x-dev"
+core = "7.x"
+project = "sokopepe_gateway"
+datestamp = "1318163038"
+

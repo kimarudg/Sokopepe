@@ -1,0 +1,10 @@
+name = order_feedback
+description = Allows buyer to provide feedback.
+package = Sokopepe - intelligent Technologies Ltd
+core = 7.x
+
+files[] = order_feedback.module
+
+
+stylesheets[all][] = order_feedback.css
+

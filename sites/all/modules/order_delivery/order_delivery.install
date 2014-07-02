@@ -1,0 +1,48 @@
+<?php 
+//create a database table to store the services provided by users
+
+function order_delivery_schema(){
+	// user_products table schema
+  $schema['order_delivery'] = array(
+    'description' => 'Sokopepe Order Delivery Table',
+    'fields' => array(
+      'order_delivery_id'             => array( //Primary key
+        'description'       => 'Primary Key: order_delivery_id',
+        'type'              => 'serial',
+        'not null'          => TRUE,
+        ),
+	 'allocation_id'           => array(
+        'description'       => 'Allocation ID',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+        'qty_delivered'           => array(
+        'description'       => 'quantity delivered',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ), 
+	  'uom'           => array(
+        'description'       => 'uom',
+         'type' 			=> 'varchar',
+        'length' 			=> 255,
+      ),
+	   'date_added'              => array(
+        'description'           => 'Date Added',
+        'type'                  => 'datetime',
+        'mysql_type'            => 'datetime',
+        'not null'              => FALSE,
+      )
+    ),
+    'primary key' => array('order_delivery_id'),
+    'indexes'       =>  array(
+                          'allocation_id' => array('allocation_id'),
+						   
+                        ),
+    );  
+  return $schema;
+}
+
+
+

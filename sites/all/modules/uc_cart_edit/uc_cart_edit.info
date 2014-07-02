@@ -1,0 +1,7 @@
+; $Id$
+name = Ubercart Cart Edit Links
+description = Adds the possibility to return from cart to the product form and change the selected options.
+package = Ubercart Extra
+core = 7.x
+
+dependencies[] = uc_product

@@ -1,0 +1,145 @@
+<?php 
+
+function inspect_product_schema(){
+	
+	$schema['inspection'] = array(
+    'description' => 'Inspections for the Products for sale',
+    'fields' => array(
+      'inspection_id'             => array( //Primary key
+        'description'       => 'Primary Key: Inspection ID',
+        'type'              => 'serial',
+		'unsigned'			=> TRUE,
+        'not null'          => TRUE,
+        ),
+      'inspection_name'           => array(
+        'description'       => 'Name of Insoection, eg afflatoxin, moisture',
+        'type'              => 'varchar',
+        'length'              => '200',
+      ),
+	  'body'           => array(
+        'description'       => 'details about the inspection',
+        'type'              => 'text',
+      ),
+	  'remarks'           => array(
+        'description'       => 'Remarks',
+        'type'              => 'text',
+      ),
+     'date_added'              => array(
+        'description'           => 'Date Added',
+        'type'                  => 'datetime',
+        'mysql_type'            => 'DATETIME',
+        'not null'              => FALSE,
+      )
+    ),
+    'primary key' => array('inspection_id'),
+    'indexes'       =>  array(
+                          'inspectionid' => array('inspection_id')
+                        ),
+    ); 
+	
+	
+$schema['product_score'] = array(
+    'description' => 'Inspections results for the product',
+    'fields' => array(
+      'score_id'             => array( //Primary key
+        'description'       => 'Primary Key',
+        'type'              => 'serial',
+		'unsigned'			=> TRUE,
+        'not null'          => TRUE,
+        ),
+      'user_product_id'           => array(
+        'description'       => 'Original user Product',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'inspection'           => array(
+        'description'       => 'crop inspection id',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+      'userid'           => array(
+        'description'       => 'user id',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+      'orderid'           => array(
+        'description'       => 'order id',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'score'           => array(
+        'description'       => 'Score for the crop',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'qty_passed'           => array(
+        'description'       => 'Quantity Passed',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'qty_failed'           => array(
+        'description'       => 'Quantity Failed',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+      'inspectedby'           => array(
+        'description'       => 'Who inspected?',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+     'date_added'              => array(
+        'description'           => 'Date Added',
+        'type'                  => 'datetime',
+        'mysql_type'            => 'DATETIME',
+        'not null'              => FALSE,
+      )
+    ),
+    'primary key' => array('score_id'),
+    'indexes'       =>  array(
+                          'scoreid' => array('score_id')
+                        ),
+    );
+    
+    
+    $schema['product_available'] = array(
+    'description' => 'Products available for the order after the inspection',
+    'fields' => array(
+      'available_pro_id'             => array( //Primary key
+        'description'       => 'Primary Key',
+        'type'              => 'serial',
+		'unsigned'			=> TRUE,
+        'not null'          => TRUE,
+        ),
+      'productid'           => array(
+        'description'       => 'Original Product',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'orderid'           => array(
+        'description'       => 'order id',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+	  'qty_available'           => array(
+        'description'       => 'Quantity Passed and is available',
+        'type'              => 'int',
+        'size'              => 'big',
+        'not null'          => FALSE,
+      ),
+     
+     ),
+     'primary key' => array('available_pro_id'),
+    ); 
+	
+ return $schema;
+}

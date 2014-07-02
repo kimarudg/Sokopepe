@@ -1,0 +1,63 @@
+<?php
+function mymodule_schema()
+{
+	$schema['image_downloaded'] = array (
+	'description' 			=> 'Images that have been requested to be downloaded',
+	'fields' 				=> array (
+		'request_id'    	=> array( 
+			'description'   =>'the unique key of the request',
+			'type'			=> 'serial',
+			'not null' 		=> TRUE,
+			),
+		'first_name'		=> array(
+			'description' 	=> 'First Name',
+			'type' 			=> 'varchar',
+			'length' 		=> 45,
+			'not null' 		=> FALSE,
+			),
+			
+		'surname'			=> array(
+			'description' 	=> 'Surname',
+			'type' 			=> 'varchar',
+			'length' 			=> 45,
+			'not null' 			=> TRUE,
+			),	
+		'user_email'		=> array(
+			'description' 	=> 'User Email',
+			'type' 			=> 'varchar',
+			'length' 			=> 90,
+			'not null' 			=> TRUE,
+			),
+		'fileID'			=> array(
+			'description' 	=> 'requested file',
+			'type' 			=> 'int',
+			'size' 			=> 'big',
+			'not null' 		=> TRUE,
+			),
+		'emailed'			=> array(
+			'description' 	=> 'Emailed or not, 0=not 1=already sent',
+			'type' 			=> 'int',
+			'size' 			=> 'big',
+			'not null' 		=> TRUE,
+			),
+		'date_requested'	=> array(
+			'description' 	=> 'date requested',
+			'type' 			=> 'varchar',
+			'mysql_type' 	=> 'datetime',
+			'not null' 		=> TRUE,
+			),
+		'date_emailed'	=> array(
+			'description' 	=> 'date emailed',
+			'type' 			=> 'varchar',
+			'mysql_type' 	=> 'datetime',
+			'not null' 		=> TRUE,
+			),
+	),
+	
+	'primary key' 			=> array('request_id'),
+    'indexes'       		=>  array(
+                          'fileID' => array('fileID'),
+                        ),
+	);
+	return $schema;
+}
